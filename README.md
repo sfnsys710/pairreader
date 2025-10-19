@@ -81,6 +81,65 @@ Access at `http://localhost:8000` with credentials `admin` / `admin`
 
 > **Note**: ChromaDB data is stored in the container and persists as long as the container exists.
 
+### ☁️ Google Cloud Platform Deployment
+
+**Prerequisites:**
+- `gcloud` CLI installed
+- GCP project with billing enabled
+- Required APIs enabled: Artifact Registry, Cloud Run, Secret Manager, IAM
+- Artifact Registry repository created (named `pairreader` in `europe-southwest1`)
+
+**Infrastructure:**
+- **Cloud Run**: Serverless container platform
+- **Artifact Registry**: Private Docker image storage
+- **Secret Manager**: Secure API key storage
+- **Service Account**: `pairreader-runtime` (for app runtime on Cloud Run)
+
+#### Deployment Steps
+
+**1. Create Runtime Service Account**
+
+Create via gcloud or GCP console.
+
+**2. Store Secrets in Secret Manager**
+
+Store these secrets via gcloud or console: `ANTHROPIC_API_KEY`, `CHAINLIT_AUTH_SECRET`, `LANGSMITH_API_KEY`
+
+**3. Grant Runtime SA Access to Secrets**
+
+For each secret (ANTHROPIC_API_KEY, CHAINLIT_AUTH_SECRET, LANGSMITH_API_KEY):
+
+```bash
+gcloud secrets add-iam-policy-binding $SECRET \
+  --member="serviceAccount:pairreader-runtime@${GCP_PROJECT}.iam.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
+```
+
+**4. Build and Push Image**
+
+```bash
+gcloud auth configure-docker europe-southwest1-docker.pkg.dev
+IMAGE_TAG="europe-southwest1-docker.pkg.dev/${GCP_PROJECT}/pairreader/pairreader-service:latest"
+docker build -t $IMAGE_TAG .
+docker push $IMAGE_TAG
+```
+
+**5. Deploy to Cloud Run**
+
+```bash
+gcloud run deploy pairreader-service \
+  --image=$IMAGE_TAG \
+  --region=europe-southwest1 \
+  --service-account=pairreader-runtime@${GCP_PROJECT}.iam.gserviceaccount.com \
+  --memory=4Gi \
+  --port=8000 \
+  --set-secrets=ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,CHAINLIT_AUTH_SECRET=CHAINLIT_AUTH_SECRET:latest,LANGSMITH_API_KEY=LANGSMITH_API_KEY:latest \
+  --allow-unauthenticated
+
+# Get your service URL
+gcloud run services describe pairreader-service --region=europe-southwest1 --format="value(status.url)"
+```
+
 ## 💡 How to Use
 
 ### First Time Setup
@@ -177,6 +236,35 @@ The system automatically picks the right agent based on your question. See [CLAU
 - **Adjust settings** in the UI panel: toggle query decomposition, change retrieval count (5-20)
 - **Use `/Create`** to start fresh when switching topics, **`/Update`** to add related documents
 - **Your data persists** - the knowledge base is saved between sessions in ChromaDB
+
+## 🚀 CI/CD Pipeline
+
+PairReader uses a `GitHub Actions` CI/CD pipeline that automatically validates, tests, and deploys the application on every pull request to `main`.
+
+**Pipeline Stages:**
+
+1. **Authorization** - Blocks external PRs from consuming resources
+2. **Environment Variable Extraction** - Extracts version from `pyproject.toml`
+3. **Pre-commit Checks** - Runs all code quality hooks (linting, formatting, secret detection)
+4. **Unit Tests** - Executes pytest unit test suite
+5. **Build & Deploy to Dev** - Builds Docker image and deploys to Google Cloud Run (dev environment)
+
+**Triggered by:**
+- Pull requests opened, synchronized, or reopened against `main` branch
+- Only runs for PRs from the same repository (external PRs blocked for security)
+
+**GitHub Repo Configs:**
+- **Environment**: `gcp-dev`
+- **Secrets**: `SA`: GCP service account JSON key with permissions for Artifact Registry, Cloud Run, and Secret Manager
+
+**Variables:**
+- GCP Project: `soufianesys`
+- Region: `europe-southwest1`
+- Repository: `pairreader` (Artifact Registry)
+
+**Deployment:**
+- **Service**: `pairreader-service-dev` on Cloud Run
+- **Image Tag**: `europe-southwest1-docker.pkg.dev/soufianesys/pairreader/pairreader-service-dev:{git-sha}`
 
 ## 🔧 Development
 
