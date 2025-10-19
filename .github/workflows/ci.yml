@@ -1,10 +1,12 @@
 name: CI
 
 env:
-  PROJECT_ID: "soufianesys"
-  GAR_LOCATION: "europe-southwest1"
-  REPOSITORY: "pairreader"
-  SERVICE_NAME_BASE: "pairreader-service"
+  # GCP project and region (set in GitHub environment variables)
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GAR_LOCATION: ${{ vars.GCP_REGION }}
+  GAR_REPOSITORY: "pairreader"
+  GAR_BASE_IMAGE_NAME: "pairreader"
+  CLOUDRUN_BASE_SERVICE_NAME: "pairreader-service"
 
 on:
   pull_request:
@@ -99,7 +101,7 @@ jobs:
         run: |
           echo '${{ secrets.SA }}' > ${HOME}/gcp-key.json
           gcloud auth activate-service-account --key-file=${HOME}/gcp-key.json
-          gcloud config set project ${{ env.PROJECT_ID }}
+          gcloud config set project ${{ env.GCP_PROJECT_ID }}
           rm ${HOME}/gcp-key.json
 
       - name: Set up Docker Buildx
@@ -110,14 +112,14 @@ jobs:
 
       - name: Build and Push Docker Image
         run: |
-          IMAGE_TAG="${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME_BASE }}-dev:${{ github.sha }}"
+          IMAGE_TAG="${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ env.GAR_BASE_IMAGE_NAME }}-dev:${{ github.sha }}"
           docker build -t $IMAGE_TAG .
           docker push $IMAGE_TAG
 
       - name: Deploy to Cloud Run
         run: |
-          gcloud run deploy ${{ env.SERVICE_NAME_BASE }}-dev \
-            --image=${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME_BASE }}-dev:${{ github.sha }} \
+          gcloud run deploy ${{ env.CLOUDRUN_BASE_SERVICE_NAME }}-dev \
+            --image=${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ env.GAR_BASE_IMAGE_NAME }}-dev:${{ github.sha }} \
             --region=${{ env.GAR_LOCATION }} \
             --service-account=pairreader-runtime@soufianesys.iam.gserviceaccount.com \
             --allow-unauthenticated \
