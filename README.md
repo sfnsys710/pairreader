@@ -87,7 +87,7 @@ Access at `http://localhost:8000` with credentials `admin` / `admin`
 - `gcloud` CLI installed
 - GCP project with billing enabled
 - Required APIs enabled: Artifact Registry, Cloud Run, Secret Manager, IAM
-- Artifact Registry repository created (named `pairreader` in `europe-southwest1`)
+- Artifact Registry repository created (named `pairreader` in your chosen region)
 
 **Infrastructure:**
 - **Cloud Run**: Serverless container platform
@@ -111,15 +111,20 @@ For each secret (ANTHROPIC_API_KEY, CHAINLIT_AUTH_SECRET, LANGSMITH_API_KEY):
 
 ```bash
 gcloud secrets add-iam-policy-binding $SECRET \
-  --member="serviceAccount:pairreader-runtime@${GCP_PROJECT}.iam.gserviceaccount.com" \
+  --member="serviceAccount:pairreader-runtime@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
   --role="roles/secretmanager.secretAccessor"
 ```
 
 **4. Build and Push Image**
 
 ```bash
-gcloud auth configure-docker europe-southwest1-docker.pkg.dev
-IMAGE_TAG="europe-southwest1-docker.pkg.dev/${GCP_PROJECT}/pairreader/pairreader-service:latest"
+# Set your GCP configuration
+export GCP_PROJECT_ID="your-gcp-project-id"
+export GCP_REGION="your-gcp-region"  # e.g.,
+
+gcloud auth configure-docker ${GCP_REGION}-docker.pkg.dev
+
+IMAGE_TAG="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/pairreader/pairreader-service:latest"
 docker build -t $IMAGE_TAG .
 docker push $IMAGE_TAG
 ```
@@ -129,15 +134,15 @@ docker push $IMAGE_TAG
 ```bash
 gcloud run deploy pairreader-service \
   --image=$IMAGE_TAG \
-  --region=europe-southwest1 \
-  --service-account=pairreader-runtime@${GCP_PROJECT}.iam.gserviceaccount.com \
+  --region=${GCP_REGION} \
+  --service-account=pairreader-runtime@${GCP_PROJECT_ID}.iam.gserviceaccount.com \
   --memory=4Gi \
   --port=8000 \
   --set-secrets=ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,CHAINLIT_AUTH_SECRET=CHAINLIT_AUTH_SECRET:latest,LANGSMITH_API_KEY=LANGSMITH_API_KEY:latest \
   --allow-unauthenticated
 
 # Get your service URL
-gcloud run services describe pairreader-service --region=europe-southwest1 --format="value(status.url)"
+gcloud run services describe pairreader-service --region=${GCP_REGION} --format="value(status.url)"
 ```
 
 ## 💡 How to Use
@@ -257,14 +262,14 @@ PairReader uses a `GitHub Actions` CI/CD pipeline that automatically validates, 
 - **Environment**: `gcp-dev`
 - **Secrets**: `SA`: GCP service account JSON key with permissions for Artifact Registry, Cloud Run, and Secret Manager
 
-**Variables:**
-- GCP Project: `soufianesys`
-- Region: `europe-southwest1`
+**Variables** (configured in GitHub `gcp-dev` environment):
+- `GCP_PROJECT_ID`: Your GCP project ID
+- `GCP_REGION`: Your GCP region (e.g., `europe-southwest1`)
 - Repository: `pairreader` (Artifact Registry)
 
 **Deployment:**
 - **Service**: `pairreader-service-dev` on Cloud Run
-- **Image Tag**: `europe-southwest1-docker.pkg.dev/soufianesys/pairreader/pairreader-service-dev:{git-sha}`
+- **Image Tag**: `{region}-docker.pkg.dev/{project-id}/pairreader/pairreader-dev:{git-sha}`
 
 ## 🔐 Repository Governance
 

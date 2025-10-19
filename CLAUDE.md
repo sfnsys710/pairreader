@@ -156,7 +156,7 @@ PairReader uses **GitHub Actions** for continuous integration and deployment. Th
 5. **Build & Deploy to Dev** - Builds Docker image and deploys to Google Cloud Run
    - Authenticates to GCP using service account
    - Builds Docker image with SHA tag
-   - Pushes to Artifact Registry (`europe-southwest1-docker.pkg.dev/soufianesys/pairreader`)
+   - Pushes to Artifact Registry (`{region}-docker.pkg.dev/{project-id}/pairreader`)
    - Deploys to Cloud Run service `pairreader-service-dev`
    - Configures secrets from Secret Manager (ANTHROPIC_API_KEY, CHAINLIT_AUTH_SECRET, LANGSMITH_API_KEY)
 
@@ -171,16 +171,16 @@ PairReader uses **GitHub Actions** for continuous integration and deployment. Th
   - Cloud Run (deploy services)
   - Secret Manager (access secrets)
 
-**Variables**:
-- GCP Project: `soufianesys`
-- Region: `europe-southwest1`
-- Repository: `pairreader` (Artifact Registry)
-- Service: `pairreader-service-dev` (Cloud Run)
+**Variables** (configured in GitHub `gcp-dev` environment):
+- `GCP_PROJECT_ID`: GCP project ID (configurable per deployment)
+- `GCP_REGION`: GCP region (configurable per deployment)
+- `GAR_REPOSITORY`: `pairreader` (Artifact Registry)
+- `CLOUDRUN_BASE_SERVICE_NAME`: `pairreader-service` (Cloud Run)
 
 **Deployment Details**:
-- **Image Tag Format**: `{region}-docker.pkg.dev/{project}/{repo}/{service}-dev:{git-sha}`
+- **Image Tag Format**: `{region}-docker.pkg.dev/{project-id}/{repo}/{image-name}-dev:{git-sha}`
 - **Runtime Configuration**: 4Gi memory, port 8000, allow unauthenticated access
-- **Service Account**: `pairreader-runtime@soufianesys.iam.gserviceaccount.com`
+- **Service Account**: `pairreader-runtime@{project-id}.iam.gserviceaccount.com`
 
 ### Repository Governance
 
