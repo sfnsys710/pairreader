@@ -128,6 +128,83 @@ LANGSMITH_PROJECT=pairreader
 - Uses `uv` package manager (not pip)
 - Virtual environment is managed by `uv` in `.venv/`
 
+### CI/CD Pipeline
+
+PairReader uses **GitHub Actions** for continuous integration and deployment. The pipeline automatically validates, tests, and deploys the application on every pull request to `main`.
+
+**Pipeline Stages** (`.github/workflows/ci.yml`):
+
+1. **Authorization** - Blocks external PRs from consuming resources
+   - Only PRs from the same repository are allowed to run
+   - Security measure to prevent unauthorized resource usage
+
+2. **Environment Variable Extraction** - Extracts metadata from `pyproject.toml`
+   - Reads version number for tagging
+   - Makes variables available to downstream jobs
+
+3. **Pre-commit Checks** - Runs all code quality hooks
+   - File hygiene, YAML/TOML/JSON validation
+   - Ruff linting and formatting
+   - Secret detection via detect-secrets
+   - Notebook processing (nbqa-ruff, nbstripout)
+
+4. **Unit Tests** - Executes pytest unit test suite
+   - Runs only unit tests (`pytest -m unit -v`)
+   - Fast feedback on core functionality
+   - Must pass before deployment
+
+5. **Build & Deploy to Dev** - Builds Docker image and deploys to Google Cloud Run
+   - Authenticates to GCP using service account
+   - Builds Docker image with SHA tag
+   - Pushes to Artifact Registry (`europe-southwest1-docker.pkg.dev/soufianesys/pairreader`)
+   - Deploys to Cloud Run service `pairreader-service-dev`
+   - Configures secrets from Secret Manager (ANTHROPIC_API_KEY, CHAINLIT_AUTH_SECRET, LANGSMITH_API_KEY)
+
+**Triggered by**:
+- Pull requests opened, synchronized, or reopened against `main` branch
+- Only runs for PRs from the same repository (external PRs blocked)
+
+**GitHub Configuration**:
+- **Environment**: `gcp-dev` (contains secrets and variables)
+- **Required Secret**: `SA` - GCP service account JSON key with permissions for:
+  - Artifact Registry (push images)
+  - Cloud Run (deploy services)
+  - Secret Manager (access secrets)
+
+**Variables**:
+- GCP Project: `soufianesys`
+- Region: `europe-southwest1`
+- Repository: `pairreader` (Artifact Registry)
+- Service: `pairreader-service-dev` (Cloud Run)
+
+**Deployment Details**:
+- **Image Tag Format**: `{region}-docker.pkg.dev/{project}/{repo}/{service}-dev:{git-sha}`
+- **Runtime Configuration**: 4Gi memory, port 8000, allow unauthenticated access
+- **Service Account**: `pairreader-runtime@soufianesys.iam.gserviceaccount.com`
+
+### Repository Governance
+
+PairReader enforces strict code quality and review standards through automated governance:
+
+**Code Ownership** (`.github/CODEOWNERS`):
+- All code changes require review from designated code owners
+- `@sfnsys710` owns all core application code, infrastructure, documentation, and CI/CD
+- GitHub automatically requests reviews from owners when PRs touch their areas
+- Patterns follow specificity precedence (more specific patterns override general ones)
+
+**Branch Protection** (`.github/repo-settings.md`):
+- **Merge Strategy**: Rebase-only merges enforced for clean, linear git history
+- **Pull Request Requirements**:
+  - 1 code owner approval required
+  - Last person who pushed cannot approve their own PR
+  - CI must pass (`pre-commit` + `pytest`)
+  - Branch must be up-to-date with `main`
+- **Security**: Secret scanning and push protection enabled
+- **Repository Admins**: Can bypass rules for flexibility on solo projects
+- **Protection Method**: Modern repository ruleset (ID: 8656916)
+
+This ensures all changes are reviewed, tested, and meet quality standards before merging to `main`.
+
 ### Docker Architecture
 
 **Multi-Stage Build** (`Dockerfile`):
