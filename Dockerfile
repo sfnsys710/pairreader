@@ -35,7 +35,10 @@ ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH="/app/src" \
     CHAINLIT_HOST=0.0.0.0 \
-    CHAINLIT_PORT=8000
+    CHAINLIT_PORT=8000 \
+    LANGSMITH_TRACING=true \
+    LANGSMITH_ENDPOINT=https://api.smith.langchain.com \
+    LANGSMITH_PROJECT=pairreader
 
 EXPOSE 8000
 

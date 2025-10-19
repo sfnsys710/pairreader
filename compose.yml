@@ -7,17 +7,9 @@ services:
     ports:
       - "8000:8000"
     environment:
-      # Required API keys (set these in .env file)
+      # Required secrets (from .env file)
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - CHAINLIT_AUTH_SECRET=${CHAINLIT_AUTH_SECRET}
 
-      # LangSmith LLMOps (optional but recommended)
-      - LANGSMITH_TRACING=${LANGSMITH_TRACING:-true}
-      - LANGSMITH_ENDPOINT=${LANGSMITH_ENDPOINT:-https://api.smith.langchain.com}
+      # Optional LangSmith API key (other LangSmith config in Dockerfile)
       - LANGSMITH_API_KEY=${LANGSMITH_API_KEY:-}
-      - LANGSMITH_PROJECT=${LANGSMITH_PROJECT:-pairreader}
-
-      # Chainlit configuration
-      - CHAINLIT_HOST=0.0.0.0
-      - CHAINLIT_PORT=8000
-      - PYTHONUNBUFFERED=1
