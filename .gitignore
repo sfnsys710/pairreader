@@ -15,6 +15,9 @@ chroma/
 .venv
 .env
 
+# Service account keys (security)
+*-sa.json
+
 # Dev folders
 idea/
 data/

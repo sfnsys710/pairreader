@@ -15,6 +15,7 @@ env/
 .env
 .env.*
 !.env.example
+*-sa.json
 
 # Data directories (will be mounted as volumes)
 chroma/
