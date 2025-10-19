@@ -1,0 +1,52 @@
+# CODEOWNERS file for PairReader
+# This file defines individuals or teams responsible for code in this repository.
+# When a PR touches files matching these patterns, the designated owners are automatically requested for review.
+#
+# Documentation: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# Pattern format: <file-pattern> @username1 @username2 @org/team-name
+# Patterns are matched from top to bottom, with the last matching pattern taking precedence.
+
+# Default owner for everything in the repo
+# This is a fallback and will be overridden by more specific patterns below
+* @sfnsys710
+
+# Core application code
+/src/pairreader/ @sfnsys710
+
+# Agent architecture and workflows
+/src/pairreader/agents.py @sfnsys710
+/src/pairreader/*_nodes.py @sfnsys710
+/src/pairreader/schemas.py @sfnsys710
+
+# Critical infrastructure
+/src/pairreader/vectorestore.py @sfnsys710
+/src/pairreader/docparser.py @sfnsys710
+
+# Configuration and deployment
+/pyproject.toml @sfnsys710
+/Dockerfile @sfnsys710
+/compose.yml @sfnsys710
+/.dockerignore @sfnsys710
+
+# CI/CD and GitHub workflows
+/.github/ @sfnsys710
+/.github/workflows/ @sfnsys710
+
+# Documentation
+/CLAUDE.md @sfnsys710
+/README.md @sfnsys710
+/chainlit.md @sfnsys710
+
+# Security and quality
+/.pre-commit-config.yaml @sfnsys710
+/LICENSE @sfnsys710
+
+# Tests (require review from maintainer)
+/tests/ @sfnsys710
+
+# Environment and secrets (extra scrutiny)
+/.env.example @sfnsys710
+
+# Package metadata
+/uv.lock @sfnsys710

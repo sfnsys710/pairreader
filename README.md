@@ -266,6 +266,29 @@ PairReader uses a `GitHub Actions` CI/CD pipeline that automatically validates, 
 - **Service**: `pairreader-service-dev` on Cloud Run
 - **Image Tag**: `europe-southwest1-docker.pkg.dev/soufianesys/pairreader/pairreader-service-dev:{git-sha}`
 
+## 🔐 Repository Governance
+
+PairReader enforces strict code quality and review standards through automated governance:
+
+**Code Ownership** (`.github/CODEOWNERS`):
+- All code changes require review from designated code owners
+- `@sfnsys710` owns all core application code, infrastructure, documentation, and CI/CD
+- GitHub automatically requests reviews from owners when PRs touch their areas
+- Patterns follow specificity precedence (more specific patterns override general ones)
+
+**Branch Protection** (`.github/repo-settings.md`):
+- **Merge Strategy**: Rebase-only merges enforced for clean, linear git history
+- **Pull Request Requirements**:
+  - 1 code owner approval required
+  - Last person who pushed cannot approve their own PR
+  - CI must pass (`pre-commit` + `pytest`)
+  - Branch must be up-to-date with `main`
+- **Security**: Secret scanning and push protection enabled
+- **Repository Admins**: Can bypass rules for flexibility on solo projects
+- **Protection Method**: Modern repository ruleset (ID: 8656916)
+
+This ensures all changes are reviewed, tested, and meet quality standards before merging to `main`.
+
 ## 🔧 Development
 
 ### Adding Dependencies
@@ -363,7 +386,7 @@ Built with these amazing open-source projects:
 
 ## 📄 License
 
-This project is open source and available under standard terms.
+This project is open source and available under the [MIT License](LICENSE).
 
 ---
 
