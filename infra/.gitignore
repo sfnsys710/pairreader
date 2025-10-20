@@ -1,0 +1,34 @@
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars  # Ignore sensitive tfvars (keep *.auto.tfvars)
+!dev.auto.tfvars
+!prod.auto.tfvars
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# Local Terraform plans
+*.tfplan
+*plan-output.txt
+
+# Credentials
+**/gcp-key.json
+**/*.json  # Exclude GCP service account keys
+!terraform.lock.hcl  # But keep lock file
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
