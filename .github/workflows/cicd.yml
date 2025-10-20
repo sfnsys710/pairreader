@@ -1,4 +1,4 @@
-name: CI
+name: CI/CD
 
 env:
   # GCP project and region (set in GitHub environment variables)
