@@ -121,33 +121,102 @@ LANGSMITH_PROJECT=pairreader
 
 ## CI/CD Pipeline
 
-PairReader uses **GitHub Actions** with a **multi-environment deployment strategy** across three separate workflows for dev, staging, and production environments.
+PairReader uses **GitHub Actions** with a **modular, reusable workflow architecture** for multi-environment deployments across dev, staging, and production environments.
 
-### Workflow Structure
+### Workflow Architecture
 
-**Three Independent Workflows**:
-- `.github/workflows/pr.yml` - PR checks and dev deployment (automatic on PR)
-- `.github/workflows/staging.yml` - Staging deployment (automatic on merge to `main`)
-- `.github/workflows/prod.yml` - Production deployment (manual `workflow_dispatch` only)
+**Main Workflows** (trigger deployments):
+- `.github/workflows/pr.yml` - PR checks and dev deployment (automatic on PR to `main`)
+- `.github/workflows/staging.yml` - Staging deployment (**manual** `workflow_dispatch`)
+- `.github/workflows/prod.yml` - Production deployment (**manual** `workflow_dispatch`)
+
+**Reusable Workflow Components** (called by main workflows):
+- `.github/workflows/terraform-workflow.yml` - Terraform plan and apply (parameterized by environment)
+- `.github/workflows/docker-build.yml` - Docker build and push to Artifact Registry
+- `.github/workflows/deploy-cloudrun.yml` - Cloud Run deployment with configurable authentication
+
+This modular design allows:
+- **DRY principle**: Terraform/Docker/Deploy logic defined once, reused across environments
+- **Consistency**: Same deployment process for all environments, only parameters differ
+- **Maintainability**: Changes to deployment logic propagate to all environments automatically
 
 ### Development Lifecycle
 
 **Progressive deployment strategy**: dev → staging → prod
 
 1. **Dev Environment** (Automatic on PR to `main`):
-   - Runs pre-commit checks, Terraform validation, unit tests
-   - Deploys to `pairreader-service-dev` with image tag: `pairreader-dev:{git-sha}`
-   - Public access (unauthenticated)
+   - **Triggers**: PR opened/synchronized/reopened to `main`
+   - **Authorization**: Blocks external PRs from consuming resources
+   - **Pipeline stages**:
+     1. Extract versions from `pyproject.toml` and `infra/.terraform-version`
+     2. Pre-commit checks (ruff, detect-secrets, file hygiene)
+     3. Terraform checks (format, validate all 3 environments)
+     4. Unit tests (`pytest -m unit`)
+     5. Terraform plan/apply (dev) - via reusable workflow
+     6. **Code change detection** - checks if source code actually changed
+     7. Docker build (dev) - **only if code changed** - via reusable workflow
+     8. Cloud Run deployment (dev) - **only if code changed** - via reusable workflow
+   - **Image tag**: `{git-sha}` (e.g., `9afe1dd`) for traceability
+   - **Access**: Public (unauthenticated, `--allow-unauthenticated`)
+   - **Service**: `pairreader-service-dev`
+   - **Optimization**: Skips Docker build/deploy if only docs/tests/infra changed (saves time and resources)
 
-2. **Staging Environment** (Automatic on merge to `main`):
-   - Deploys to `pairreader-service-staging` with image tag: `pairreader-staging:v{version}`
-   - Uses semantic version from `pyproject.toml`
-   - Public access (unauthenticated)
+2. **Staging Environment** (**Manual** trigger via GitHub Actions UI):
+   - **Triggers**: Manual `workflow_dispatch` (NOT automatic on merge to main)
+   - **Pipeline stages**:
+     1. Extract versions
+     2. Terraform plan/apply (staging) - via reusable workflow
+     3. Docker build (staging) - via reusable workflow
+     4. Cloud Run deployment (staging) - via reusable workflow
+   - **Image tag**: `v{version}` (e.g., `v0.1.12`) from `pyproject.toml`
+   - **Access**: Public (unauthenticated, `--allow-unauthenticated`)
+   - **Service**: `pairreader-service-staging`
+   - **Use case**: Pre-production testing with semantic versioning
 
-3. **Production Environment** (Manual trigger only):
-   - Requires typing "production" to confirm
-   - Deploys to `pairreader-service-prod` with image tag: `pairreader-prod:v{version}`
-   - **Private** (requires authentication)
+3. **Production Environment** (Manual trigger with confirmation):
+   - **Triggers**: Manual `workflow_dispatch` with required confirmation input
+   - **Safety gate**: Must type "production" to confirm deployment
+   - **Pipeline stages**:
+     1. Validate confirmation input
+     2. Extract versions
+     3. Terraform plan/apply (prod) - via reusable workflow
+     4. Docker build (prod) - via reusable workflow
+     5. Cloud Run deployment (prod) - via reusable workflow
+   - **Image tag**: `v{version}` (e.g., `v0.1.12`) from `pyproject.toml`
+   - **Access**: **Private** (requires authentication, `--no-allow-unauthenticated`)
+   - **Service**: `pairreader-service-prod`
+   - **Concurrency**: Prevents concurrent production deployments
+
+### Concurrency Control
+
+**PR workflow**:
+- Concurrency group: `pr-{pr_number}`
+- Cancel in progress: `true` (new commits cancel old runs)
+
+**Staging workflow**:
+- Concurrency group: `staging-deployment`
+- Cancel in progress: `false` (waits for completion)
+
+**Production workflow**:
+- Concurrency group: `production-deployment`
+- Cancel in progress: `false` (prevents accidental cancellation)
+
+### Code Change Detection (Dev Only)
+
+The dev workflow includes smart change detection to avoid unnecessary Docker builds:
+
+```yaml
+files: |
+  src/**
+  pyproject.toml
+  uv.lock
+  Dockerfile
+  .dockerignore
+  chainlit.md
+  public/**
+```
+
+If only infrastructure/docs/tests change, Terraform still runs but Docker build/deploy is skipped.
 
 ### GitHub Environment Configuration
 

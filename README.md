@@ -362,10 +362,15 @@ PairReader uses **GitHub Actions** with a **multi-environment deployment strateg
 
 ### Workflow Overview
 
-**Three Independent Workflows:**
-- `.github/workflows/pr.yml` - PR checks and dev deployment (automatic on PR)
-- `.github/workflows/staging.yml` - Staging deployment (automatic on merge to `main`)
-- `.github/workflows/prod.yml` - Production deployment (manual `workflow_dispatch` only)
+**Main Workflows:**
+- `.github/workflows/pr.yml` - PR checks and dev deployment (automatic on PR to `main`)
+- `.github/workflows/staging.yml` - Staging deployment (manual `workflow_dispatch`)
+- `.github/workflows/prod.yml` - Production deployment (manual `workflow_dispatch` with confirmation)
+
+**Reusable Workflow Components:**
+- `.github/workflows/terraform-workflow.yml` - Terraform plan and apply (parameterized by environment)
+- `.github/workflows/docker-build.yml` - Docker build and push to Artifact Registry
+- `.github/workflows/deploy-cloudrun.yml` - Cloud Run deployment with configurable authentication
 
 ### GitHub Configuration
 
@@ -423,8 +428,10 @@ rm github-actions-key.json
 PairReader implements a **progressive deployment strategy** across three environments: dev → staging → prod. Each environment has its own isolated infrastructure but shares the same GitHub configuration.
 
 ```
-Pull Request → Dev Environment → Merge to Main → Staging Environment → Manual Trigger → Production
+Pull Request → Dev Environment → Manual Staging Trigger → Staging Environment → Manual Production Trigger → Production
 ```
+
+**Note**: Both staging and production require manual workflow_dispatch triggers for controlled deployments.
 
 ### Dev Environment (Automatic on PR)
 
@@ -440,20 +447,22 @@ Pull Request → Dev Environment → Merge to Main → Staging Environment → M
 5. **Unit Tests** - Runs pytest unit tests
 6. **Terraform Plan (Dev)** - Shows infrastructure changes (review window)
 7. **Terraform Apply (Dev)** - Applies infrastructure changes
-8. **Docker Build (Dev)** - Builds and pushes image
-9. **Deploy (Dev)** - Deploys to Cloud Run
+8. **Code Change Detection** - Checks if source code actually changed
+9. **Docker Build (Dev)** - Builds and pushes image (**only if code changed**)
+10. **Deploy (Dev)** - Deploys to Cloud Run (**only if code changed**)
 
 **Deployment Details:**
 - **Service**: `pairreader-service-dev`
-- **Image Tag**: `pairreader-dev:{git-sha}` (e.g., `pairreader-dev:9afe1dd`)
-- **Artifact Registry**: `{region}-docker.pkg.dev/{project-id}/pairreader-dev/`
+- **Image Tag**: `{git-sha}` (e.g., `9afe1dd`) - raw SHA for traceability
+- **Artifact Registry**: `{region}-docker.pkg.dev/{project-id}/pairreader-dev/pairreader-dev:{git-sha}`
 - **Service Account**: `pairreader-runtime-dev@{project-id}.iam.gserviceaccount.com`
 - **Access**: Public (unauthenticated)
 - **Purpose**: Rapid testing of PR changes before merge
+- **Optimization**: Skips Docker build/deploy if only docs/tests/infra changed
 
-### Staging Environment (Automatic on Merge)
+### Staging Environment (Manual Trigger)
 
-**Triggered by:** Push to `main` branch (after PR merge)
+**Triggered by:** Manual `workflow_dispatch` (GitHub Actions UI)
 
 **Workflow:** `.github/workflows/staging.yml`
 
@@ -466,8 +475,8 @@ Pull Request → Dev Environment → Merge to Main → Staging Environment → M
 
 **Deployment Details:**
 - **Service**: `pairreader-service-staging`
-- **Image Tag**: `pairreader-staging:v{version}` (e.g., `pairreader-staging:v0.1.0`)
-- **Artifact Registry**: `{region}-docker.pkg.dev/{project-id}/pairreader-staging/`
+- **Image Tag**: `v{version}` (e.g., `v0.1.12`) from `pyproject.toml`
+- **Artifact Registry**: `{region}-docker.pkg.dev/{project-id}/pairreader-staging/pairreader-staging:v{version}`
 - **Service Account**: `pairreader-runtime-staging@{project-id}.iam.gserviceaccount.com`
 - **Access**: Public (unauthenticated)
 - **Purpose**: Pre-production testing with semantic versioning
@@ -488,8 +497,8 @@ Pull Request → Dev Environment → Merge to Main → Staging Environment → M
 
 **Deployment Details:**
 - **Service**: `pairreader-service-prod`
-- **Image Tag**: `pairreader-prod:v{version}` (e.g., `pairreader-prod:v0.1.0`)
-- **Artifact Registry**: `{region}-docker.pkg.dev/{project-id}/pairreader-prod/`
+- **Image Tag**: `v{version}` (e.g., `v0.1.12`) from `pyproject.toml`
+- **Artifact Registry**: `{region}-docker.pkg.dev/{project-id}/pairreader-prod/pairreader-prod:v{version}`
 - **Service Account**: `pairreader-runtime-prod@{project-id}.iam.gserviceaccount.com`
 - **Access**: **Private** (requires authentication)
 - **Purpose**: Production deployment with manual approval gate
@@ -501,21 +510,29 @@ Pull Request → Dev Environment → Merge to Main → Staging Environment → M
    - Pre-commit checks run
    - Tests run
    - Infrastructure changes shown in Terraform plan
-   - App deploys to `pairreader-service-dev`
+   - If code changed: App deploys to `pairreader-service-dev`
 3. **Review and test** on dev environment
-4. **Merge PR to main** → Triggers staging deployment automatically
+4. **Merge PR to main**
+   - Code is merged but no automatic deployment to staging
+5. **Manual staging deployment** via GitHub Actions UI when ready
+   - Navigate to Actions → "Deploy to Staging" → "Run workflow"
    - Semantic versioned image deployed to `pairreader-service-staging`
-5. **Test on staging** environment
-6. **Manual production deployment** via GitHub Actions UI
+6. **Test on staging** environment
+7. **Manual production deployment** via GitHub Actions UI
+   - Navigate to Actions → "Deploy to Production" → "Run workflow"
    - Type "production" to confirm
    - Review Terraform plan carefully
    - Deploys to `pairreader-service-prod` (authenticated only)
 
 ### Version Management
 
-- **Dev**: Uses Git SHA for traceability (e.g., `9afe1dd`)
-- **Staging/Prod**: Uses semantic version from `pyproject.toml` (e.g., `v0.1.0`)
+- **Dev**: Uses Git SHA for traceability (e.g., `9afe1dd`) - raw commit hash
+- **Staging/Prod**: Uses semantic version from `pyproject.toml` (e.g., `v0.1.12`) - prefixed with `v`
 - **Terraform**: Version managed in `infra/.terraform-version` and used by all CI/CD workflows
+- **Image Naming Pattern**:
+  - Dev: `pairreader-dev:{git-sha}`
+  - Staging: `pairreader-staging:v{version}`
+  - Prod: `pairreader-prod:v{version}`
 
 ---
 
