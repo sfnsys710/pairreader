@@ -32,6 +32,8 @@ resource "google_cloud_run_v2_service" "pairreader" {
     ignore_changes = [
       # Allow CI/CD to update the image without Terraform reverting it
       template[0].containers[0].image,
+      # Allow CI/CD to manage secrets via gcloud --set-secrets without Terraform reverting them
+      template[0].containers[0].env,
     ]
   }
 }
