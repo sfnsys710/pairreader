@@ -1,3 +1,7 @@
+# IMPORTANT: When updating Terraform or provider versions, also update:
+# - infra/envs/dev/main.tf (Terraform required_version & provider version)
+# - infra/envs/staging/main.tf (Terraform required_version & provider version)
+# - infra/.terraform-version (CI/CD reads this for terraform CLI version)
 terraform {
   required_version = ">= 1.10"
   required_providers {
