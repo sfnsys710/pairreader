@@ -43,8 +43,6 @@ jobs:
     with:
       environment: staging
       terraform_version: ${{ needs.extract-version.outputs.TF_VERSION }}
-      project_id: ${{ vars.GCP_PROJECT_ID }}
-      region: ${{ vars.GCP_REGION }}
     secrets:
       SA: ${{ secrets.SA }}
 
@@ -56,9 +54,7 @@ jobs:
     uses: ./.github/workflows/docker-build.yml
     with:
       environment: staging
-      image_tag: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/pairreader-staging/pairreader-staging:v${{ needs.extract-version.outputs.PAIRREADER_VERSION }}
-      project_id: ${{ vars.GCP_PROJECT_ID }}
-      region: ${{ vars.GCP_REGION }}
+      image_tag: v${{ needs.extract-version.outputs.PAIRREADER_VERSION }}
     secrets:
       SA: ${{ secrets.SA }}
 
@@ -70,9 +66,7 @@ jobs:
     uses: ./.github/workflows/deploy-cloudrun.yml
     with:
       environment: staging
-      image_tag: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/pairreader-staging/pairreader-staging:v${{ needs.extract-version.outputs.PAIRREADER_VERSION }}
-      project_id: ${{ vars.GCP_PROJECT_ID }}
-      region: ${{ vars.GCP_REGION }}
+      image_tag: v${{ needs.extract-version.outputs.PAIRREADER_VERSION }}
       service_name: pairreader-service-staging
       allow_unauthenticated: true
     secrets:

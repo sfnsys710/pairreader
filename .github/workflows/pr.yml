@@ -148,8 +148,6 @@ jobs:
     with:
       environment: dev
       terraform_version: ${{ needs.extract-version.outputs.TF_VERSION }}
-      project_id: ${{ vars.GCP_PROJECT_ID }}
-      region: ${{ vars.GCP_REGION }}
     secrets:
       SA: ${{ secrets.SA }}
 
@@ -185,9 +183,7 @@ jobs:
     uses: ./.github/workflows/docker-build.yml
     with:
       environment: dev
-      image_tag: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/pairreader-dev/pairreader-dev:${{ github.sha }}
-      project_id: ${{ vars.GCP_PROJECT_ID }}
-      region: ${{ vars.GCP_REGION }}
+      image_tag: ${{ github.sha }}
     secrets:
       SA: ${{ secrets.SA }}
 
@@ -197,9 +193,7 @@ jobs:
     uses: ./.github/workflows/deploy-cloudrun.yml
     with:
       environment: dev
-      image_tag: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/pairreader-dev/pairreader-dev:${{ github.sha }}
-      project_id: ${{ vars.GCP_PROJECT_ID }}
-      region: ${{ vars.GCP_REGION }}
+      image_tag: ${{ github.sha }}
       service_name: pairreader-service-dev
       allow_unauthenticated: true
     secrets:

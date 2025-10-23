@@ -11,14 +11,6 @@ on:
         description: 'Terraform version to use'
         required: true
         type: string
-      project_id:
-        description: 'GCP Project ID'
-        required: true
-        type: string
-      region:
-        description: 'GCP Region'
-        required: true
-        type: string
     secrets:
       SA:
         description: 'GCP Service Account JSON'
@@ -45,7 +37,7 @@ jobs:
           GOOGLE_CREDENTIALS: ${{ secrets.SA }}
 
       - name: Terraform Plan
-        run: terraform plan -var="project_id=${{ inputs.project_id }}" -var="region=${{ inputs.region }}"
+        run: terraform plan -var="project_id=${{ vars.GCP_PROJECT_ID }}" -var="region=${{ vars.GCP_REGION }}"
         working-directory: infra/envs/${{ inputs.environment }}
         env:
           GOOGLE_CREDENTIALS: ${{ secrets.SA }}
@@ -71,7 +63,7 @@ jobs:
           GOOGLE_CREDENTIALS: ${{ secrets.SA }}
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve -var="project_id=${{ inputs.project_id }}" -var="region=${{ inputs.region }}"
+        run: terraform apply -auto-approve -var="project_id=${{ vars.GCP_PROJECT_ID }}" -var="region=${{ vars.GCP_REGION }}"
         working-directory: infra/envs/${{ inputs.environment }}
         env:
           GOOGLE_CREDENTIALS: ${{ secrets.SA }}
