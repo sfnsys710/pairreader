@@ -181,7 +181,10 @@ PairReader uses **GitHub Actions** with a **multi-environment deployment strateg
 **Key Design Decisions**:
 - **Shared Secrets**: All environments share the same Secret Manager secrets
 - **Manual Secret Management**: Secrets are managed completely outside Terraform via `gcloud` commands for security
-- **Global Configuration**: Project ID and region defined once in `infra/terraform.tfvars` (gitignored)
+- **Variable Management**:
+  - **Local Development**: Uses `infra/terraform.tfvars` for convenience (gitignored for security)
+  - **CI/CD**: Uses command-line variables `-var="project_id=..."` (explicit and traceable)
+  - **Setup**: Copy `infra/terraform.tfvars.example` to `infra/terraform.tfvars` and fill in your values
 
 ### Repository Governance
 

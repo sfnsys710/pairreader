@@ -15,6 +15,9 @@ chroma/
 .venv
 .env
 
+# Terraform variable files (may contain sensitive data)
+*.tfvars
+
 # Service account keys (security)
 *-sa-key.json
 
