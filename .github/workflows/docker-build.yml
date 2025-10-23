@@ -1,0 +1,52 @@
+name: Docker Build and Push
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Environment to deploy to (dev/staging/prod)'
+        required: true
+        type: string
+      image_tag:
+        description: 'Full Docker image tag (including registry path)'
+        required: true
+        type: string
+      project_id:
+        description: 'GCP Project ID'
+        required: true
+        type: string
+      region:
+        description: 'GCP Region'
+        required: true
+        type: string
+    secrets:
+      SA:
+        description: 'GCP Service Account JSON'
+        required: true
+
+jobs:
+  docker-build:
+    name: Build and push Docker (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    environment: gcp
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Authenticate to Google Cloud
+        run: |
+          echo '${{ secrets.SA }}' > ${HOME}/gcp-key.json
+          gcloud auth activate-service-account --key-file=${HOME}/gcp-key.json
+          gcloud config set project ${{ inputs.project_id }}
+          rm ${HOME}/gcp-key.json
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ inputs.region }}-docker.pkg.dev
+
+      - name: Build and Push Docker Image
+        run: |
+          docker build -t ${{ inputs.image_tag }} .
+          docker push ${{ inputs.image_tag }}

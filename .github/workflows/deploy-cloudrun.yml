@@ -1,0 +1,68 @@
+name: Deploy to Cloud Run
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Environment to deploy to (dev/staging/prod)'
+        required: true
+        type: string
+      image_tag:
+        description: 'Full Docker image tag (including registry path)'
+        required: true
+        type: string
+      project_id:
+        description: 'GCP Project ID'
+        required: true
+        type: string
+      region:
+        description: 'GCP Region'
+        required: true
+        type: string
+      service_name:
+        description: 'Cloud Run service name'
+        required: true
+        type: string
+      allow_unauthenticated:
+        description: 'Allow unauthenticated access'
+        required: true
+        type: boolean
+    secrets:
+      SA:
+        description: 'GCP Service Account JSON'
+        required: true
+
+jobs:
+  deploy:
+    name: Deploy to Cloud Run (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    environment: gcp
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Authenticate to Google Cloud
+        run: |
+          echo '${{ secrets.SA }}' > ${HOME}/gcp-key.json
+          gcloud auth activate-service-account --key-file=${HOME}/gcp-key.json
+          gcloud config set project ${{ inputs.project_id }}
+          rm ${HOME}/gcp-key.json
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ inputs.service_name }} \
+            --image=${{ inputs.image_tag }} \
+            --region=${{ inputs.region }} \
+            --service-account=pairreader-runtime-${{ inputs.environment }}@${{ inputs.project_id }}.iam.gserviceaccount.com \
+            ${{ inputs.allow_unauthenticated && '--allow-unauthenticated' || '--no-allow-unauthenticated' }} \
+            --memory=4Gi \
+            --port=8000 \
+            --set-secrets=ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,CHAINLIT_AUTH_SECRET=CHAINLIT_AUTH_SECRET:latest,LANGSMITH_API_KEY=LANGSMITH_API_KEY:latest \
+            --quiet
+
+      - name: Get Service URL
+        run: |
+          SERVICE_URL=$(gcloud run services describe ${{ inputs.service_name }} \
+            --region=${{ inputs.region }} \
+            --format='value(status.url)')
+          echo "${{ inputs.environment }} service deployed at: $SERVICE_URL"
