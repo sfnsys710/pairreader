@@ -1,0 +1,77 @@
+name: Terraform Workflow
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Environment to deploy to (dev/staging/prod)'
+        required: true
+        type: string
+      terraform_version:
+        description: 'Terraform version to use'
+        required: true
+        type: string
+      project_id:
+        description: 'GCP Project ID'
+        required: true
+        type: string
+      region:
+        description: 'GCP Region'
+        required: true
+        type: string
+    secrets:
+      SA:
+        description: 'GCP Service Account JSON'
+        required: true
+
+jobs:
+  terraform-plan:
+    name: Terraform plan (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    environment: gcp
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.terraform_version }}
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: infra/envs/${{ inputs.environment }}
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.SA }}
+
+      - name: Terraform Plan
+        run: terraform plan -var="project_id=${{ inputs.project_id }}" -var="region=${{ inputs.region }}"
+        working-directory: infra/envs/${{ inputs.environment }}
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.SA }}
+
+  terraform-apply:
+    name: Terraform apply (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    needs: terraform-plan
+    environment: gcp
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.terraform_version }}
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: infra/envs/${{ inputs.environment }}
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.SA }}
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve -var="project_id=${{ inputs.project_id }}" -var="region=${{ inputs.region }}"
+        working-directory: infra/envs/${{ inputs.environment }}
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.SA }}
