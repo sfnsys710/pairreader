@@ -108,12 +108,38 @@ jobs:
         env:
           GOOGLE_CREDENTIALS: ${{ secrets.SA }}
 
+  check-code-changes-prod:
+    name: Check for code changes (prod)
+    runs-on: ubuntu-latest
+    needs: terraform-apply-prod
+    outputs:
+      code_changed: ${{ steps.changed-files.outputs.any_changed }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # Need full history to detect changes
+
+      - name: Check for code changes
+        id: changed-files
+        uses: tj-actions/changed-files@v44
+        with:
+          files: |
+            src/**
+            pyproject.toml
+            uv.lock
+            Dockerfile
+            .dockerignore
+            chainlit.md
+            public/**
+
   docker-build-prod:
     name: Build and push Docker (prod)
     runs-on: ubuntu-latest
     needs:
       - extract-version
-      - terraform-apply-prod
+      - check-code-changes-prod
+    if: needs.check-code-changes-prod.outputs.code_changed == 'true'
     environment: gcp
     steps:
       - name: Checkout
