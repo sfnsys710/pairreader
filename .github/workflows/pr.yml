@@ -1,0 +1,258 @@
+name: PR Checks and Dev Deployment
+
+env:
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GCP_REGION: ${{ vars.GCP_REGION }}
+  GAR_REPOSITORY: "pairreader"
+  GAR_BASE_IMAGE_NAME: "pairreader"
+  CLOUDRUN_BASE_SERVICE_NAME: "pairreader-service"
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+    branches:
+      - 'main'
+
+# Prevent concurrent runs on the same PR
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  # Block external PRs from consuming any resources
+  authorize:
+    name: Authorize PR
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - name: Authorized
+        run: echo "PR authorized to run workflows"
+
+  extract-version:
+    name: Extract versions
+    runs-on: ubuntu-latest
+    needs: authorize
+    outputs:
+      PAIRREADER_VERSION: ${{ steps.extract-versions.outputs.PAIRREADER_VERSION }}
+      TF_VERSION: ${{ steps.extract-versions.outputs.TF_VERSION }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Extract versions
+        id: extract-versions
+        run: |
+          PAIRREADER_VERSION=$(grep -m 1 '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          TF_VERSION=$(cat infra/.terraform-version)
+          echo "PAIRREADER_VERSION = $PAIRREADER_VERSION"
+          echo "TF_VERSION = $TF_VERSION"
+          echo "PAIRREADER_VERSION=$PAIRREADER_VERSION" >> $GITHUB_OUTPUT
+          echo "TF_VERSION=$TF_VERSION" >> $GITHUB_OUTPUT
+
+  pre-commit:
+    name: Pre-commit
+    needs: extract-version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Install dependencies
+        run: |
+          uv sync --only-group pre-commit
+          uv tree --only-group pre-commit
+
+      - name: run pre-commit
+        run: uv run --no-sync pre-commit run --all-files
+
+  terraform-checks:
+    name: Terraform checks
+    needs: extract-version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ needs.extract-version.outputs.TF_VERSION }}
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+        working-directory: infra
+
+      - name: Terraform Init (dev)
+        run: terraform init -backend=false
+        working-directory: infra/envs/dev
+
+      - name: Terraform Validate (dev)
+        run: terraform validate
+        working-directory: infra/envs/dev
+
+      - name: Terraform Init (staging)
+        run: terraform init -backend=false
+        working-directory: infra/envs/staging
+
+      - name: Terraform Validate (staging)
+        run: terraform validate
+        working-directory: infra/envs/staging
+
+      - name: Terraform Init (prod)
+        run: terraform init -backend=false
+        working-directory: infra/envs/prod
+
+      - name: Terraform Validate (prod)
+        run: terraform validate
+        working-directory: infra/envs/prod
+
+  pytest:
+    name: Unit tests
+    needs:
+      - extract-version
+      - pre-commit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Install dependencies
+        run: uv sync --group test
+
+      - name: Run unit tests
+        run: uv run pytest -m unit -v
+
+  terraform-plan-dev:
+    name: Terraform plan (dev)
+    runs-on: ubuntu-latest
+    needs:
+      - extract-version
+      - terraform-checks
+      - pre-commit
+      - pytest
+    environment: gcp-dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ needs.extract-version.outputs.TF_VERSION }}
+
+      - name: Authenticate to Google Cloud
+        run: |
+          echo '${{ secrets.SA }}' > ${HOME}/gcp-key.json
+          gcloud auth activate-service-account --key-file=${HOME}/gcp-key.json
+          gcloud config set project ${{ env.GCP_PROJECT_ID }}
+          rm ${HOME}/gcp-key.json
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: infra/envs/dev
+
+      - name: Terraform Plan
+        run: terraform plan -var-file=../../terraform.tfvars
+        working-directory: infra/envs/dev
+
+  terraform-apply-dev:
+    name: Terraform apply (dev)
+    runs-on: ubuntu-latest
+    needs:
+      - extract-version
+      - terraform-plan-dev
+    environment: gcp-dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ needs.extract-version.outputs.TF_VERSION }}
+
+      - name: Authenticate to Google Cloud
+        run: |
+          echo '${{ secrets.SA }}' > ${HOME}/gcp-key.json
+          gcloud auth activate-service-account --key-file=${HOME}/gcp-key.json
+          gcloud config set project ${{ env.GCP_PROJECT_ID }}
+          rm ${HOME}/gcp-key.json
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: infra/envs/dev
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve -var-file=../../terraform.tfvars
+        working-directory: infra/envs/dev
+
+  docker-build-dev:
+    name: Build and push Docker (dev)
+    runs-on: ubuntu-latest
+    needs: terraform-apply-dev
+    environment: gcp-dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Authenticate to Google Cloud
+        run: |
+          echo '${{ secrets.SA }}' > ${HOME}/gcp-key.json
+          gcloud auth activate-service-account --key-file=${HOME}/gcp-key.json
+          gcloud config set project ${{ env.GCP_PROJECT_ID }}
+          rm ${HOME}/gcp-key.json
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev
+
+      - name: Build and Push Docker Image
+        run: |
+          IMAGE_TAG="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}-dev/${{ env.GAR_BASE_IMAGE_NAME }}-dev:${{ github.sha }}"
+          docker build -t $IMAGE_TAG .
+          docker push $IMAGE_TAG
+
+  deploy-dev:
+    name: Deploy to Cloud Run (dev)
+    runs-on: ubuntu-latest
+    needs: docker-build-dev
+    environment: gcp-dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Authenticate to Google Cloud
+        run: |
+          echo '${{ secrets.SA }}' > ${HOME}/gcp-key.json
+          gcloud auth activate-service-account --key-file=${HOME}/gcp-key.json
+          gcloud config set project ${{ env.GCP_PROJECT_ID }}
+          rm ${HOME}/gcp-key.json
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.CLOUDRUN_BASE_SERVICE_NAME }}-dev \
+            --image=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}-dev/${{ env.GAR_BASE_IMAGE_NAME }}-dev:${{ github.sha }} \
+            --region=${{ env.GCP_REGION }} \
+            --service-account=pairreader-runtime-dev@${{ env.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
+            --allow-unauthenticated \
+            --memory=4Gi \
+            --port=8000 \
+            --set-secrets=ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,CHAINLIT_AUTH_SECRET=CHAINLIT_AUTH_SECRET:latest,LANGSMITH_API_KEY=LANGSMITH_API_KEY:latest \
+            --quiet
