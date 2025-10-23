@@ -83,66 +83,175 @@ Access at `http://localhost:8000` with credentials `admin` / `admin`
 
 ### ☁️ Google Cloud Platform Deployment
 
+Deploy PairReader to GCP using **Terraform** for infrastructure provisioning and **GitHub Actions** for CI/CD.
+
 **Prerequisites:**
-- `gcloud` CLI installed
+- `gcloud` CLI installed and configured
+- Terraform >= 1.10 installed
 - GCP project with billing enabled
-- Required APIs enabled: Artifact Registry, Cloud Run, Secret Manager, IAM
-- Artifact Registry repository created (named `pairreader` in your chosen region)
+- Required APIs enabled: Artifact Registry, Cloud Run, Secret Manager, IAM, Cloud Resource Manager
 
-**Infrastructure:**
-- **Cloud Run**: Serverless container platform
-- **Artifact Registry**: Private Docker image storage
-- **Secret Manager**: Secure API key storage
-- **Service Account**: `pairreader-runtime` (for app runtime on Cloud Run)
+#### Infrastructure Overview
 
-#### Deployment Steps
+PairReader uses **Terraform** to provision isolated environments (dev/staging/prod), with each environment having its own:
+- **Artifact Registry** repository for Docker images
+- **Cloud Run** service for running the application
+- **Service Account** with access to shared Secret Manager secrets
 
-**1. Create Runtime Service Account**
+**Key Design Decisions:**
+- **Shared Secrets**: All environments (dev/staging/prod) share the same Secret Manager secrets (`ANTHROPIC_API_KEY`, `CHAINLIT_AUTH_SECRET`, `LANGSMITH_API_KEY`)
+- **Manual Secret Management**: Secrets are managed completely outside Terraform via `gcloud` commands for security
+- **Separate State Buckets**: Each environment has its own GCS bucket for Terraform state isolation
+- **Global Configuration**: Project ID and region defined once in `infra/terraform.tfvars` and shared across all environments
 
-Create via gcloud or GCP console.
-
-**2. Store Secrets in Secret Manager**
-
-Store these secrets via gcloud or console: `ANTHROPIC_API_KEY`, `CHAINLIT_AUTH_SECRET`, `LANGSMITH_API_KEY`
-
-**3. Grant Runtime SA Access to Secrets**
-
-For each secret (ANTHROPIC_API_KEY, CHAINLIT_AUTH_SECRET, LANGSMITH_API_KEY):
-
-```bash
-gcloud secrets add-iam-policy-binding $SECRET \
-  --member="serviceAccount:pairreader-runtime@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
-  --role="roles/secretmanager.secretAccessor"
+**Directory Structure:**
+```
+infra/
+├── terraform.tfvars          # Global config: project_id, region (gitignored)
+├── modules/
+│   └── pairreader/          # Reusable Terraform module
+│       ├── main.tf
+│       ├── variables.tf
+│       ├── outputs.tf
+│       ├── artifact_registry.tf
+│       ├── runtime_sa.tf         # Service account + IAM bindings
+│       └── cloud_run.tf
+└── envs/
+    ├── dev/                 # Development environment
+    │   ├── backend.tf       # State: sfn-terraform-state-dev
+    │   └── main.tf
+    ├── staging/             # Staging environment
+    │   ├── backend.tf       # State: sfn-terraform-state-staging
+    │   └── main.tf
+    └── prod/                # Production environment
+        ├── backend.tf       # State: sfn-terraform-state-prod
+        └── main.tf
 ```
 
-**4. Build and Push Image**
+**Resources Created Per Environment:**
+
+| Resource Type | Naming Pattern | Example (dev) |
+|---------------|----------------|---------------|
+| **Artifact Registry** | `pairreader-{env}` | `pairreader-dev` |
+| **Service Account** | `pairreader-runtime-{env}@{project}.iam.gserviceaccount.com` | `pairreader-runtime-dev@soufianesys.iam.gserviceaccount.com` |
+| **Cloud Run Service** | `pairreader-service-{env}` | `pairreader-service-dev` |
+| **Secrets** | Shared across all environments | `ANTHROPIC_API_KEY`, `CHAINLIT_AUTH_SECRET`, `LANGSMITH_API_KEY` |
+
+**Resource Details:**
+- **Artifact Registry**: Docker repository for storing application images (format: DOCKER)
+- **Service Account**: Runtime identity for Cloud Run with `secretmanager.secretAccessor` role
+- **Secret Manager**: Stores API keys and secrets (shared across environments, populated manually)
+- **Cloud Run Service**: 4Gi memory, 2 vCPU, port 8000, scaling 0-10 instances
+
+#### One-Time Setup
+
+**1. Create GCS Buckets for Terraform State**
+
+Each environment needs its own GCS bucket for Terraform state:
 
 ```bash
-# Set your GCP configuration
-export GCP_PROJECT_ID="your-gcp-project-id"
-export GCP_REGION="your-gcp-region"  # e.g.,
+# Create state buckets for each environment
+for ENV in dev staging prod; do
+  gcloud storage buckets create gs://sfn-terraform-state-${ENV} \
+    --location=${GCP_REGION} \
+    --uniform-bucket-level-access
+done
+```
 
+**2. Create CI/CD Service Account (for GitHub Actions)**
+
+The CI/CD pipeline needs a service account with appropriate permissions:
+
+```bash
+# Create service account
+gcloud iam service-accounts create pairreader-github-cicd \
+  --display-name="GitHub Actions Service Account for PairReader" \
+  --description="Used by GitHub Actions CI/CD pipeline"
+
+# Grant required roles
+for ROLE in roles/artifactregistry.writer roles/run.admin roles/iam.serviceAccountUser; do
+  gcloud projects add-iam-policy-binding ${GCP_PROJECT_ID} \
+    --member="serviceAccount:pairreader-github-cicd@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
+    --role="$ROLE"
+done
+
+# Create and download key
+gcloud iam service-accounts keys create github-actions-key.json \
+  --iam-account=pairreader-github-cicd@${GCP_PROJECT_ID}.iam.gserviceaccount.com
+
+# Add key to GitHub Secrets as 'SA' in the gcp-dev environment
+# Then delete local key file for security
+rm github-actions-key.json
+```
+
+**3. Configure Global Terraform Variables**
+
+Create `infra/terraform.tfvars` (this file is gitignored):
+
+```hcl
+# Global configuration shared across all environments
+project_id = "your-gcp-project-id"
+region     = "your-gcp-region"  # e.g., "europe-southwest1"
+```
+
+**4. Create Secrets in Secret Manager**
+
+Create secrets manually (shared across all environments):
+
+```bash
+# Create secrets
+echo -n "your_anthropic_api_key" | gcloud secrets create ANTHROPIC_API_KEY --data-file=-
+echo -n "your_chainlit_auth_secret" | gcloud secrets create CHAINLIT_AUTH_SECRET --data-file=-
+echo -n "your_langsmith_api_key" | gcloud secrets create LANGSMITH_API_KEY --data-file=-
+```
+
+#### Provision Infrastructure with Terraform
+
+```bash
+# Navigate to environment directory
+cd infra/envs/dev  # or staging/prod
+
+# Initialize Terraform (downloads providers and configures backend)
+terraform init
+
+# Preview changes
+terraform plan
+
+# Apply infrastructure
+terraform apply
+
+# View outputs (service URL, repository URL, service account email)
+terraform output
+```
+
+This provisions:
+- Artifact Registry repository
+- Service account with Secret Manager access (`secretmanager.secretAccessor` role)
+- Cloud Run service
+
+#### Deploy Application
+
+The **CI/CD pipeline** automatically deploys to dev on every PR to `main`. For manual deployment or other environments:
+
+```bash
+# Set environment variables
+export GCP_PROJECT_ID="your-gcp-project-id"
+export GCP_REGION="your-gcp-region"
+export ENV="dev"  # or staging/prod
+
+# Authenticate Docker
 gcloud auth configure-docker ${GCP_REGION}-docker.pkg.dev
 
-IMAGE_TAG="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/pairreader/pairreader-service:latest"
+# Build and push image
+IMAGE_TAG="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/pairreader-${ENV}/pairreader-service-${ENV}:latest"
 docker build -t $IMAGE_TAG .
 docker push $IMAGE_TAG
-```
 
-**5. Deploy to Cloud Run**
-
-```bash
-gcloud run deploy pairreader-service \
+# Cloud Run service will automatically pick up the new image
+# Or update it manually:
+gcloud run services update pairreader-service-${ENV} \
   --image=$IMAGE_TAG \
-  --region=${GCP_REGION} \
-  --service-account=pairreader-runtime@${GCP_PROJECT_ID}.iam.gserviceaccount.com \
-  --memory=4Gi \
-  --port=8000 \
-  --set-secrets=ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,CHAINLIT_AUTH_SECRET=CHAINLIT_AUTH_SECRET:latest,LANGSMITH_API_KEY=LANGSMITH_API_KEY:latest \
-  --allow-unauthenticated
-
-# Get your service URL
-gcloud run services describe pairreader-service --region=${GCP_REGION} --format="value(status.url)"
+  --region=${GCP_REGION}
 ```
 
 ## 💡 How to Use
