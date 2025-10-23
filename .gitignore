@@ -16,7 +16,7 @@ chroma/
 .env
 
 # Service account keys (security)
-*-sa.json
+*-sa-key.json
 
 # Dev folders
 idea/
