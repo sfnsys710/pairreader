@@ -6,27 +6,150 @@
 
 A smart document companion that allows you to chat with your books, presentations, notes, and other documents. Upload your files and have conversations with your content using advanced AI capabilities powered by LangGraph and Claude.
 
-## ⚡ Key Highlights
+---
 
-- 🤖 **Multi-Agent Architecture** - Specialized AI agents for different query types
-- 🧠 **Smart Query Processing** - Automatic decomposition of complex questions
-- 🔍 **Intelligent Routing** - QA mode for specific questions, Discovery mode for exploration
-- 📊 **Production-Ready** - Built-in observability with LangSmith tracing
-- 🔄 **Human-in-the-Loop** - Review and refine queries before search
-- 💾 **Persistent Storage** - Your knowledge base persists between sessions
+## Why PairReader?
 
-## 🎯 What is PairReader?
+Working with large documents, research papers, or collections of notes can be overwhelming. You need to find specific information quickly, understand key themes, or compare content across multiple sources. Traditional search only finds keywords, not meaning.
 
-PairReader is like having a study partner who never forgets anything! It uses a multi-agent architecture to intelligently process your questions, optimize queries, and retrieve relevant information from your documents.
+**PairReader solves this** by becoming your intelligent reading partner:
 
-## 🚀 Quick Start
+Unlike simple RAG chatbots, PairReader uses a **multi-agent architecture** that intelligently routes queries, decomposes complex questions, and provides both targeted answers and high-level overviews. It's production-ready with LangSmith tracing, giving you full observability into how answers are generated.
 
-### Prerequisites
+**What makes PairReader different:**
+- Multi-agent system with specialized workflows (QA vs Discovery)
+- Human-in-the-loop query review for transparency and control
+- Smart query decomposition for complex multi-part questions
+- Production-grade observability with LangSmith integration
+- Full infrastructure-as-code for cloud deployment
+- Complete CI/CD pipeline for dev/staging/prod environments
+
+---
+
+## Features
+
+### Core Capabilities
+
+- **Multi-Agent Architecture** - Specialized AI agents for different query types (QA vs Discovery)
+- **Smart Query Processing** - Automatic decomposition of complex questions into sub-queries
+- **Intelligent Routing** - System picks QA mode (specific questions) or Discovery mode (exploration)
+- **Human-in-the-Loop** - Review and refine queries before search execution
+- **Persistent Storage** - Your knowledge base persists between sessions with ChromaDB
+- **Production-Ready** - Built-in observability with LangSmith tracing
+
+### Intelligent Query Processing
+
+- **Query Decomposition**: Complex questions like "Compare methods and results" automatically break into "What methods?" + "What results?"
+- **Human-in-the-Loop**: Review and revise subqueries before search - you stay in control
+- **Smart Routing**: System automatically picks QA (specific) or Discovery (overview) mode based on intent
+- **Multi-document Search**: Searches across all uploaded documents simultaneously
+
+### Advanced Document Processing
+
+- **Smart Chunking**: Uses Docling's HybridChunker to preserve document structure and context
+- **Contextual Embedding**: Each chunk knows its context for better semantic search
+- **Persistent Storage**: ChromaDB saves your knowledge base between sessions
+- **Flexible Formats**: Supports PDF and text files (up to 5 files, 10MB each)
+
+### Production-Ready LLMOps
+
+Built-in observability powered by LangSmith (optional):
+
+- **Zero-Configuration Tracing**: Automatically traces all agent workflows, LLM calls, and routing decisions
+- **Visual Debugging**: Inspect exact prompts, responses, and state transitions in the LangSmith UI
+- **Performance Monitoring**: Track latency, token usage, and costs per agent and LLM call
+- **Error Tracking**: Monitor fallback triggers, timeouts, and failure patterns
+- **Cost Optimization**: Identify expensive queries and optimize token consumption
+
+View your traces at [smith.langchain.com](https://smith.langchain.com/) under the `pairreader` project after enabling `LANGSMITH_TRACING` in your `.env` file.
+
+### Configurable Settings
+
+Adjust in the UI settings panel:
+- **LLM Model**: Claude Haiku (fast, default) or Sonnet (more powerful)
+- **Query Decomposition**: Break complex questions into sub-queries (ON/OFF)
+- **Document Retrieval Count**: How many chunks to retrieve (5-20, default: 10)
+- **Discovery Sampling/Clustering**: Advanced options for exploration mode
+
+### Architecture Overview
+
+PairReader uses a **multi-agent architecture** powered by LangGraph, where specialized AI agents work together to understand and answer your questions:
+
+```
+User Query
+    ↓
+PairReaderAgent (Supervisor)
+    ↓
+QADiscoveryRouter
+    ↓
+  ┌─────────────────┐
+  ↓                 ↓
+QAAgent          DiscoveryAgent
+(Default)        (Exploration)
+  ↓                 ↓
+Answer           Overview
+```
+
+**How It Works:**
+
+1. **PairReaderAgent** (Supervisor) - Handles file uploads and routes to the right agent
+2. **QAAgent** (Default) - Answers specific questions by decomposing queries and retrieving relevant chunks
+3. **DiscoveryAgent** (Exploration) - Creates overviews using clustering when you ask for "themes", "overview", or "explore"
+
+The system automatically picks the right agent based on your question.
+
+**Technology Stack:**
+- **UI Framework**: Chainlit for interactive chat interface
+- **Orchestration**: LangGraph for multi-agent workflow management
+- **Node Architecture**: Modular three-tier design (BaseNode → LLMNode/RetrievalNode)
+- **LLM**: Anthropic's Claude (Haiku/Sonnet) via LangChain with automatic fallbacks
+- **Vector Store**: ChromaDB for semantic search and clustering
+- **Document Parser**: Docling for robust PDF and text processing
+- **LLMOps Platform**: LangSmith for production observability, tracing, debugging, and monitoring
+
+See [CLAUDE.md](CLAUDE.md) for detailed architecture documentation.
+
+### How to Use
+
+#### First Time Setup
+1. **Login** with default credentials: `admin` / `admin`
+2. **Choose a mode**: Click `/Create` button or type the command
+3. **Upload documents**: Drag & drop PDFs or text files (up to 5 files, 10MB each)
+4. **Wait for processing**: Documents are chunked and embedded into ChromaDB
+
+#### Daily Usage
+1. **Ask questions naturally**: "What are the main findings?" or "Explain the methodology"
+2. **Review subqueries** (if enabled): System shows how it breaks down your question
+3. **Get your answer**: AI synthesizes information from relevant document chunks
+4. **Iterate**: Refine your question or ask follow-ups
+
+#### Mode Selection
+- **Default mode** (no command): Query existing documents
+- **/Update**: Add new documents to current collection
+- **/Create**: Start fresh with a new knowledge base
+
+### Tips for Best Results
+
+- **Start with "Give me an overview"** when you upload new documents to understand what's available
+- **Be specific** for better answers: "What were the results of experiment 2?" > "Tell me about results"
+- **Use exploration keywords** ("overview", "themes", "explore") to trigger Discovery mode
+- **Review subqueries** when shown - they reveal what's being searched
+- **Adjust settings** in the UI panel: toggle query decomposition, change retrieval count (5-20)
+- **Use `/Create`** to start fresh when switching topics, **`/Update`** to add related documents
+- **Your data persists** - the knowledge base is saved between sessions in ChromaDB
+
+---
+
+## Run Locally
+
+### Option A: Using uv (Recommended)
+
+#### Prerequisites
 - Python 3.12 or higher
 - [uv](https://github.com/astral-sh/uv) package manager
 - Anthropic API key
 
-### Installation
+#### Installation
 
 ```bash
 git clone https://github.com/soufianesys710/pairreader.git
@@ -34,7 +157,7 @@ cd pairreader
 uv sync
 ```
 
-### Configuration
+#### Configuration
 
 1. Generate a Chainlit authentication secret:
 ```bash
@@ -54,9 +177,9 @@ LANGSMITH_API_KEY=your_langsmith_api_key_here
 LANGSMITH_PROJECT=pairreader
 ```
 
-> **Note**: LangSmith is optional but recommended for production use. See the [LLMOps section](#production-ready-llmops) below for details.
+> **Note**: LangSmith is optional but recommended for production use. It provides tracing, debugging, and monitoring capabilities.
 
-### Running the Application
+#### Running the Application
 
 ```bash
 uv run pairreader
@@ -66,7 +189,7 @@ Then open your browser to `http://localhost:8000`
 
 **Default credentials:** username: `admin`, password: `admin` <!-- pragma: allowlist secret -->
 
-### 🐳 Docker Deployment (Alternative)
+### Option B: Using Docker
 
 Run PairReader with Docker:
 
@@ -81,17 +204,20 @@ Access at `http://localhost:8000` with credentials `admin` / `admin`
 
 > **Note**: ChromaDB data is stored in the container and persists as long as the container exists.
 
-### ☁️ Google Cloud Platform Deployment
+---
+
+## Run in Cloud (Google Cloud Platform)
 
 Deploy PairReader to GCP using **Terraform** for infrastructure provisioning and **GitHub Actions** for CI/CD.
 
-**Prerequisites:**
+### Prerequisites
+
 - `gcloud` CLI installed and configured
 - Terraform >= 1.10 installed
 - GCP project with billing enabled
 - Required APIs enabled: Artifact Registry, Cloud Run, Secret Manager, IAM, Cloud Resource Manager
 
-#### Infrastructure Overview
+### Infrastructure Overview
 
 PairReader uses **Terraform** to provision isolated environments (dev/staging/prod), with each environment having its own:
 - **Artifact Registry** repository for Docker images
@@ -143,9 +269,9 @@ infra/
 - **Secret Manager**: Stores API keys and secrets (shared across environments, populated manually)
 - **Cloud Run Service**: 4Gi memory, 2 vCPU, port 8000, scaling 0-10 instances
 
-#### One-Time Setup
+### One-Time Setup
 
-**1. Create GCS Buckets for Terraform State**
+#### 1. Create GCS Buckets for Terraform State
 
 Each environment needs its own GCS bucket for Terraform state:
 
@@ -158,33 +284,7 @@ for ENV in dev staging prod; do
 done
 ```
 
-**2. Create CI/CD Service Account (for GitHub Actions)**
-
-The CI/CD pipeline needs a service account with appropriate permissions:
-
-```bash
-# Create service account
-gcloud iam service-accounts create pairreader-github-cicd \
-  --display-name="GitHub Actions Service Account for PairReader" \
-  --description="Used by GitHub Actions CI/CD pipeline"
-
-# Grant required roles
-for ROLE in roles/artifactregistry.writer roles/run.admin roles/iam.serviceAccountUser; do
-  gcloud projects add-iam-policy-binding ${GCP_PROJECT_ID} \
-    --member="serviceAccount:pairreader-github-cicd@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
-    --role="$ROLE"
-done
-
-# Create and download key
-gcloud iam service-accounts keys create github-actions-key.json \
-  --iam-account=pairreader-github-cicd@${GCP_PROJECT_ID}.iam.gserviceaccount.com
-
-# Add key to GitHub Secrets as 'SA' in the gcp-dev environment
-# Then delete local key file for security
-rm github-actions-key.json
-```
-
-**3. Configure Global Terraform Variables**
+#### 2. Configure Global Terraform Variables
 
 Create `infra/terraform.tfvars` (this file is gitignored):
 
@@ -194,7 +294,7 @@ project_id = "your-gcp-project-id"
 region     = "your-gcp-region"  # e.g., "europe-southwest1"
 ```
 
-**4. Create Secrets in Secret Manager**
+#### 3. Create Secrets in Secret Manager
 
 Create secrets manually (shared across all environments):
 
@@ -205,7 +305,7 @@ echo -n "your_chainlit_auth_secret" | gcloud secrets create CHAINLIT_AUTH_SECRET
 echo -n "your_langsmith_api_key" | gcloud secrets create LANGSMITH_API_KEY --data-file=-
 ```
 
-#### Provision Infrastructure with Terraform
+#### 4. Provision Infrastructure with Terraform
 
 ```bash
 # Navigate to environment directory
@@ -229,7 +329,7 @@ This provisions:
 - Service account with Secret Manager access (`secretmanager.secretAccessor` role)
 - Cloud Run service
 
-#### Deploy Application
+### Manual Deployment
 
 The **CI/CD pipeline** automatically deploys to dev on every PR to `main`. For manual deployment or other environments:
 
@@ -254,156 +354,172 @@ gcloud run services update pairreader-service-${ENV} \
   --region=${GCP_REGION}
 ```
 
-## 💡 How to Use
+---
 
-### First Time Setup
-1. **Login** with default credentials: `admin` / `admin`
-2. **Choose a mode**: Click `/Create` button or type the command
-3. **Upload documents**: Drag & drop PDFs or text files (up to 5 files, 10MB each)
-4. **Wait for processing**: Documents are chunked and embedded into ChromaDB
+## CI/CD Setup (GitHub Actions)
 
-### Daily Usage
-1. **Ask questions naturally**: "What are the main findings?" or "Explain the methodology"
-2. **Review subqueries** (if enabled): System shows how it breaks down your question
-3. **Get your answer**: AI synthesizes information from relevant document chunks
-4. **Iterate**: Refine your question or ask follow-ups
+PairReader uses **GitHub Actions** with a **multi-environment deployment strategy** across three separate workflows for dev, staging, and production environments.
 
-### Mode Selection
-- **Default mode** (no command): Query existing documents
-- **/Update**: Add new documents to current collection
-- **/Create**: Start fresh with a new knowledge base
+### Workflow Overview
 
-## ✨ Key Features
+**Three Independent Workflows:**
+- `.github/workflows/pr.yml` - PR checks and dev deployment (automatic on PR)
+- `.github/workflows/staging.yml` - Staging deployment (automatic on merge to `main`)
+- `.github/workflows/prod.yml` - Production deployment (manual `workflow_dispatch` only)
 
-### 🧠 Intelligent Query Processing
-- **Query Decomposition**: Complex questions like "Compare methods and results" automatically break into "What methods?" + "What results?"
-- **Human-in-the-Loop**: Review and revise subqueries before search - you stay in control
-- **Smart Routing**: System automatically picks QA (specific) or Discovery (overview) mode
-- **Multi-document Search**: Searches across all uploaded documents simultaneously
+### GitHub Configuration
 
-### 📄 Advanced Document Processing
-- **Smart Chunking**: Uses Docling's HybridChunker to preserve document structure and context
-- **Contextual Embedding**: Each chunk knows its context for better semantic search
-- **Persistent Storage**: ChromaDB saves your knowledge base between sessions
-- **Flexible Formats**: Supports PDF and text files (up to 5 files, 10MB each)
+#### 1. Create GitHub Environment
 
-### Production-Ready LLMOps
-Built-in observability powered by LangSmith (optional):
+Create a **single GitHub environment** in your repository settings (Settings → Environments):
 
-- **Zero-Configuration Tracing**: Automatically traces all agent workflows, LLM calls, and routing decisions
-- **Visual Debugging**: Inspect exact prompts, responses, and state transitions in the LangSmith UI
-- **Performance Monitoring**: Track latency, token usage, and costs per agent and LLM call
-- **Error Tracking**: Monitor fallback triggers, timeouts, and failure patterns
-- **Cost Optimization**: Identify expensive queries and optimize token consumption
+**Environment name:** `gcp`
 
-View your traces at [smith.langchain.com](https://smith.langchain.com/) under the `pairreader` project after enabling `LANGSMITH_TRACING` in your `.env` file.
+**Environment secrets:**
+- `SA`: GCP service account JSON key (see service account setup below)
 
-### ⚙️ Configurable Settings
-Adjust in the UI settings panel:
-- **LLM Model**: Claude Haiku (fast, default) or Sonnet (more powerful)
-- **Query Decomposition**: Break complex questions into sub-queries (ON/OFF)
-- **Document Retrieval Count**: How many chunks to retrieve (5-20, default: 10)
-- **Discovery Sampling/Clustering**: Advanced options for exploration mode
-
-## 🏗️ Architecture
-
-PairReader uses a **multi-agent architecture** powered by LangGraph, where specialized AI agents work together to understand and answer your questions:
-
-```
-User Query
-    ↓
-PairReaderAgent (Supervisor)
-    ↓
-QADiscoveryRouter
-    ↓
-  ┌─────────────────┐
-  ↓                 ↓
-QAAgent          DiscoveryAgent
-(Default)        (Exploration)
-  ↓                 ↓
-Answer           Overview
-```
-
-### How It Works
-
-1. **PairReaderAgent** (Supervisor) - Handles file uploads and routes to the right agent
-2. **QAAgent** (Default) - Answers specific questions by decomposing queries and retrieving relevant chunks
-3. **DiscoveryAgent** (Exploration) - Creates overviews using clustering when you ask for "themes", "overview", or "explore"
-
-The system automatically picks the right agent based on your question. See [CLAUDE.md](CLAUDE.md) for technical architecture details.
-
-### Technology Stack
-- **UI Framework**: Chainlit for interactive chat interface
-- **Orchestration**: LangGraph for multi-agent workflow management
-- **Node Architecture**: Modular three-tier design (BaseNode → LLMNode/RetrievalNode)
-- **LLM**: Anthropic's Claude (Haiku/Sonnet) via LangChain with automatic fallbacks
-- **Vector Store**: ChromaDB for semantic search and clustering
-- **Document Parser**: Docling for robust PDF and text processing
-- **LLMOps Platform**: LangSmith for production observability, tracing, debugging, and monitoring
-
-## 💡 Tips for Best Results
-
-- **Start with "Give me an overview"** when you upload new documents to understand what's available
-- **Be specific** for better answers: "What were the results of experiment 2?" > "Tell me about results"
-- **Use exploration keywords** ("overview", "themes", "explore") to trigger Discovery mode
-- **Review subqueries** when shown - they reveal what's being searched
-- **Adjust settings** in the UI panel: toggle query decomposition, change retrieval count (5-20)
-- **Use `/Create`** to start fresh when switching topics, **`/Update`** to add related documents
-- **Your data persists** - the knowledge base is saved between sessions in ChromaDB
-
-## 🚀 CI/CD Pipeline
-
-PairReader uses a `GitHub Actions` CI/CD pipeline that automatically validates, tests, and deploys the application on every pull request to `main`.
-
-**Pipeline Stages:**
-
-1. **Authorization** - Blocks external PRs from consuming resources
-2. **Environment Variable Extraction** - Extracts version from `pyproject.toml`
-3. **Pre-commit Checks** - Runs all code quality hooks (linting, formatting, secret detection)
-4. **Unit Tests** - Executes pytest unit test suite
-5. **Build & Deploy to Dev** - Builds Docker image and deploys to Google Cloud Run (dev environment)
-
-**Triggered by:**
-- Pull requests opened, synchronized, or reopened against `main` branch
-- Only runs for PRs from the same repository (external PRs blocked for security)
-
-**GitHub Repo Configs:**
-- **Environment**: `gcp-dev`
-- **Secrets**: `SA`: GCP service account JSON key with permissions for Artifact Registry, Cloud Run, and Secret Manager
-
-**Variables** (configured in GitHub `gcp-dev` environment):
+**Environment variables:**
 - `GCP_PROJECT_ID`: Your GCP project ID
 - `GCP_REGION`: Your GCP region (e.g., `europe-southwest1`)
-- Repository: `pairreader` (Artifact Registry)
 
-**Deployment:**
-- **Service**: `pairreader-service-dev` on Cloud Run
-- **Image Tag**: `{region}-docker.pkg.dev/{project-id}/pairreader/pairreader-dev:{git-sha}`
+> **Note**: All three deployment targets (dev, staging, prod) share the same GitHub environment configuration since they use the same GCP project and service account. Environment-specific resources are differentiated by Terraform workspace directories and resource naming conventions.
 
-## 🔐 Repository Governance
+#### 2. Create CI/CD Service Account
 
-PairReader enforces strict code quality and review standards through automated governance:
+The CI/CD pipeline needs a service account with appropriate permissions:
 
-**Code Ownership** (`.github/CODEOWNERS`):
-- All code changes require review from designated code owners
-- `@sfnsys710` owns all core application code, infrastructure, documentation, and CI/CD
-- GitHub automatically requests reviews from owners when PRs touch their areas
-- Patterns follow specificity precedence (more specific patterns override general ones)
+```bash
+# Create service account
+gcloud iam service-accounts create pairreader-github-cicd \
+  --display-name="GitHub Actions Service Account for PairReader" \
+  --description="Used by GitHub Actions CI/CD pipeline"
 
-**Branch Protection** (`.github/repo-settings.md`):
-- **Merge Strategy**: Rebase-only merges enforced for clean, linear git history
-- **Pull Request Requirements**:
-  - 1 code owner approval required
-  - Last person who pushed cannot approve their own PR
-  - CI must pass (`pre-commit` + `pytest`)
-  - Branch must be up-to-date with `main`
-- **Security**: Secret scanning and push protection enabled
-- **Repository Admins**: Can bypass rules for flexibility on solo projects
-- **Protection Method**: Modern repository ruleset (ID: 8656916)
+# Grant required roles
+for ROLE in roles/artifactregistry.writer roles/run.admin roles/iam.serviceAccountUser; do
+  gcloud projects add-iam-policy-binding ${GCP_PROJECT_ID} \
+    --member="serviceAccount:pairreader-github-cicd@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
+    --role="$ROLE"
+done
 
-This ensures all changes are reviewed, tested, and meet quality standards before merging to `main`.
+# Create and download key
+gcloud iam service-accounts keys create github-actions-key.json \
+  --iam-account=pairreader-github-cicd@${GCP_PROJECT_ID}.iam.gserviceaccount.com
 
-## 🔧 Development
+# Add key contents to GitHub Secrets as 'SA' in the 'gcp' environment
+# Then delete local key file for security
+rm github-actions-key.json
+```
+
+**Service Account Permissions:**
+- Artifact Registry: push images
+- Cloud Run: deploy services
+- Secret Manager: access secrets
+- Terraform: manage infrastructure (storage, IAM, etc.)
+
+---
+
+## Development Lifecycle
+
+PairReader implements a **progressive deployment strategy** across three environments: dev → staging → prod. Each environment has its own isolated infrastructure but shares the same GitHub configuration.
+
+```
+Pull Request → Dev Environment → Merge to Main → Staging Environment → Manual Trigger → Production
+```
+
+### Dev Environment (Automatic on PR)
+
+**Triggered by:** Pull requests to `main` branch
+
+**Workflow:** `.github/workflows/pr.yml`
+
+**Pipeline Stages:**
+1. **Authorization** - Blocks external PRs from consuming resources
+2. **Extract Versions** - Reads from `pyproject.toml` and `infra/.terraform-version`
+3. **Pre-commit Checks** - Runs all hooks (linting, formatting, secret detection)
+4. **Terraform Checks** - Validates Terraform configuration for all environments
+5. **Unit Tests** - Runs pytest unit tests
+6. **Terraform Plan (Dev)** - Shows infrastructure changes (review window)
+7. **Terraform Apply (Dev)** - Applies infrastructure changes
+8. **Docker Build (Dev)** - Builds and pushes image
+9. **Deploy (Dev)** - Deploys to Cloud Run
+
+**Deployment Details:**
+- **Service**: `pairreader-service-dev`
+- **Image Tag**: `pairreader-dev:{git-sha}` (e.g., `pairreader-dev:9afe1dd`)
+- **Artifact Registry**: `{region}-docker.pkg.dev/{project-id}/pairreader-dev/`
+- **Service Account**: `pairreader-runtime-dev@{project-id}.iam.gserviceaccount.com`
+- **Access**: Public (unauthenticated)
+- **Purpose**: Rapid testing of PR changes before merge
+
+### Staging Environment (Automatic on Merge)
+
+**Triggered by:** Push to `main` branch (after PR merge)
+
+**Workflow:** `.github/workflows/staging.yml`
+
+**Pipeline Stages:**
+1. **Extract Versions** - Reads versions
+2. **Terraform Plan (Staging)** - Shows infrastructure changes
+3. **Terraform Apply (Staging)** - Applies changes
+4. **Docker Build (Staging)** - Builds and pushes versioned image
+5. **Deploy (Staging)** - Deploys to Cloud Run
+
+**Deployment Details:**
+- **Service**: `pairreader-service-staging`
+- **Image Tag**: `pairreader-staging:v{version}` (e.g., `pairreader-staging:v0.1.0`)
+- **Artifact Registry**: `{region}-docker.pkg.dev/{project-id}/pairreader-staging/`
+- **Service Account**: `pairreader-runtime-staging@{project-id}.iam.gserviceaccount.com`
+- **Access**: Public (unauthenticated)
+- **Purpose**: Pre-production testing with semantic versioning
+
+### Production Environment (Manual Trigger Only)
+
+**Triggered by:** Manual `workflow_dispatch` (GitHub Actions UI)
+
+**Workflow:** `.github/workflows/prod.yml`
+
+**Pipeline Stages:**
+1. **Validation** - Requires typing "production" to confirm
+2. **Extract Versions** - Reads versions
+3. **Terraform Plan (Prod)** - Shows infrastructure changes (**REVIEW THIS CAREFULLY!**)
+4. **Terraform Apply (Prod)** - Applies changes
+5. **Docker Build (Prod)** - Builds and pushes versioned image
+6. **Deploy (Prod)** - Deploys to Cloud Run
+
+**Deployment Details:**
+- **Service**: `pairreader-service-prod`
+- **Image Tag**: `pairreader-prod:v{version}` (e.g., `pairreader-prod:v0.1.0`)
+- **Artifact Registry**: `{region}-docker.pkg.dev/{project-id}/pairreader-prod/`
+- **Service Account**: `pairreader-runtime-prod@{project-id}.iam.gserviceaccount.com`
+- **Access**: **Private** (requires authentication)
+- **Purpose**: Production deployment with manual approval gate
+
+### Typical Development Flow
+
+1. **Create feature branch** and make changes
+2. **Open PR to main** → Triggers dev deployment automatically
+   - Pre-commit checks run
+   - Tests run
+   - Infrastructure changes shown in Terraform plan
+   - App deploys to `pairreader-service-dev`
+3. **Review and test** on dev environment
+4. **Merge PR to main** → Triggers staging deployment automatically
+   - Semantic versioned image deployed to `pairreader-service-staging`
+5. **Test on staging** environment
+6. **Manual production deployment** via GitHub Actions UI
+   - Type "production" to confirm
+   - Review Terraform plan carefully
+   - Deploys to `pairreader-service-prod` (authenticated only)
+
+### Version Management
+
+- **Dev**: Uses Git SHA for traceability (e.g., `9afe1dd`)
+- **Staging/Prod**: Uses semantic version from `pyproject.toml` (e.g., `v0.1.0`)
+- **Terraform**: Version managed in `infra/.terraform-version` and used by all CI/CD workflows
+
+---
+
+## Development
 
 ### Adding Dependencies
 ```bash
@@ -463,7 +579,7 @@ uv run pre-commit run ruff --all-files
 - Secret detection (prevents committing API keys)
 - Notebook processing (keeps outputs, strips metadata)
 
-## 📁 Project Structure
+### Project Structure
 
 ```
 pairreader/src/pairreader/
@@ -479,29 +595,51 @@ pairreader/src/pairreader/
 
 See [CLAUDE.md](CLAUDE.md) for detailed architecture documentation.
 
-## 🚧 Roadmap
+---
+
+## Repository Governance
+
+PairReader enforces strict code quality and review standards through automated governance:
+
+**Code Ownership** (`.github/CODEOWNERS`):
+- All code changes require review from designated code owners
+- `@sfnsys710` owns all core application code, infrastructure, documentation, and CI/CD
+- GitHub automatically requests reviews from owners when PRs touch their areas
+- Patterns follow specificity precedence (more specific patterns override general ones)
+
+**Branch Protection** (`.github/repo-settings.md`):
+- **Merge Strategy**: Rebase-only merges enforced for clean, linear git history
+- **Pull Request Requirements**:
+  - 1 code owner approval required
+  - Last person who pushed cannot approve their own PR
+  - CI must pass (`pre-commit` + `pytest`)
+  - Branch must be up-to-date with `main`
+- **Security**: Secret scanning and push protection enabled
+- **Repository Admins**: Can bypass rules for flexibility on solo projects
+- **Protection Method**: Modern repository ruleset (ID: 8656916)
+
+This ensures all changes are reviewed, tested, and meet quality standards before merging to `main`.
+
+---
+
+## Roadmap
 
 - Enhanced table/image extraction • Embedding-aware chunking • Page number attribution
 - Improved Discovery Agent sampling • Secure authentication • Additional formats (Word, Excel)
 - OAuth/SSO integration
 
-## 🤝 Contributing
+---
+
+## Contributing
 
 Contributions are welcome! Please feel free to submit pull requests or open issues for bugs and feature requests.
 
-## 🙏 Acknowledgments
+---
 
-Built with these amazing open-source projects:
-- [Chainlit](https://chainlit.io/) - Interactive chat interface
-- [LangGraph](https://langchain-ai.github.io/langgraph/) - Multi-agent orchestration
-- [ChromaDB](https://www.trychroma.com/) - Vector database
-- [Docling](https://docling-project.github.io/docling/) - Document parsing
-- [Anthropic Claude](https://www.anthropic.com/) - Language models
-
-## 📄 License
+## License
 
 This project is open source and available under the [MIT License](LICENSE).
 
 ---
 
-**Happy reading with your AI pair!** 📖✨
+**Happy reading with your AI pair!** 📖

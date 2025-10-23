@@ -38,6 +38,8 @@ uv add <package-name>    # Add a new dependency and update uv.lock
 **Important**:
 - Always use `uv sync --locked` in production/Docker to ensure reproducible builds
 - Build backend is `uv_build`
+- Python 3.12+ required
+- Uses `uv` package manager (not pip)
 
 ### Testing
 
@@ -61,12 +63,6 @@ uv run pytest -v
 # Skip slow tests
 uv run pytest -m "not slow"
 ```
-
-**Test Structure:**
-- `tests/` - All test files
-- `tests/conftest.py` - Shared fixtures (mocked LLMs, vectorstore, Chainlit, etc.)
-- `tests/test_*.py` - Test modules organized by source module
-- `tests/fixtures/` - Test data and sample files
 
 **Test Markers:**
 - `@pytest.mark.unit` - Fast unit tests for individual components
@@ -114,7 +110,7 @@ Create a `.env` file in the project root with the following variables:
 ANTHROPIC_API_KEY=your_api_key_here
 CHAINLIT_AUTH_SECRET=your_secret_here  # Generate with: chainlit create-secret
 
-# LangSmith (Activated by default for LLMOps)
+# LangSmith (Optional but recommended for production observability)
 LANGSMITH_TRACING=true
 LANGSMITH_ENDPOINT=https://api.smith.langchain.com
 LANGSMITH_API_KEY=your_langsmith_api_key_here
@@ -123,76 +119,77 @@ LANGSMITH_PROJECT=pairreader
 
 **LangSmith Integration**: The application uses LangSmith for tracing, debugging, and LLMOps monitoring. When `LANGSMITH_TRACING=true`, all LangGraph workflows are automatically traced without requiring code changes. This provides visibility into agent execution, LLM calls, and multi-agent interactions.
 
-### Development Environment
-- Python 3.12+ required
-- Uses `uv` package manager (not pip)
-- Virtual environment is managed by `uv` in `.venv/`
+## CI/CD Pipeline
 
-### CI/CD Pipeline
+PairReader uses **GitHub Actions** with a **multi-environment deployment strategy** across three separate workflows for dev, staging, and production environments.
 
-PairReader uses **GitHub Actions** for continuous integration and deployment. The pipeline automatically validates, tests, and deploys the application on every pull request to `main`.
+### Workflow Structure
 
-**Pipeline Stages** (`.github/workflows/ci.yml`):
+**Three Independent Workflows**:
+- `.github/workflows/pr.yml` - PR checks and dev deployment (automatic on PR)
+- `.github/workflows/staging.yml` - Staging deployment (automatic on merge to `main`)
+- `.github/workflows/prod.yml` - Production deployment (manual `workflow_dispatch` only)
 
-1. **Authorization** - Blocks external PRs from consuming resources
-   - Only PRs from the same repository are allowed to run
-   - Security measure to prevent unauthorized resource usage
+### Development Lifecycle
 
-2. **Environment Variable Extraction** - Extracts metadata from `pyproject.toml`
-   - Reads version number for tagging
-   - Makes variables available to downstream jobs
+**Progressive deployment strategy**: dev → staging → prod
 
-3. **Pre-commit Checks** - Runs all code quality hooks
-   - File hygiene, YAML/TOML/JSON validation
-   - Ruff linting and formatting
-   - Secret detection via detect-secrets
-   - Notebook processing (nbqa-ruff, nbstripout)
+1. **Dev Environment** (Automatic on PR to `main`):
+   - Runs pre-commit checks, Terraform validation, unit tests
+   - Deploys to `pairreader-service-dev` with image tag: `pairreader-dev:{git-sha}`
+   - Public access (unauthenticated)
 
-4. **Unit Tests** - Executes pytest unit test suite
-   - Runs only unit tests (`pytest -m unit -v`)
-   - Fast feedback on core functionality
-   - Must pass before deployment
+2. **Staging Environment** (Automatic on merge to `main`):
+   - Deploys to `pairreader-service-staging` with image tag: `pairreader-staging:v{version}`
+   - Uses semantic version from `pyproject.toml`
+   - Public access (unauthenticated)
 
-5. **Build & Deploy to Dev** - Builds Docker image and deploys to Google Cloud Run
-   - Authenticates to GCP using service account
-   - Builds Docker image with SHA tag
-   - Pushes to Artifact Registry (`{region}-docker.pkg.dev/{project-id}/pairreader`)
-   - Deploys to Cloud Run service `pairreader-service-dev`
-   - Configures secrets from Secret Manager (ANTHROPIC_API_KEY, CHAINLIT_AUTH_SECRET, LANGSMITH_API_KEY)
+3. **Production Environment** (Manual trigger only):
+   - Requires typing "production" to confirm
+   - Deploys to `pairreader-service-prod` with image tag: `pairreader-prod:v{version}`
+   - **Private** (requires authentication)
 
-**Triggered by**:
-- Pull requests opened, synchronized, or reopened against `main` branch
-- Only runs for PRs from the same repository (external PRs blocked)
+### GitHub Environment Configuration
 
-**GitHub Configuration**:
-- **Environment**: `gcp-dev` (contains secrets and variables)
-- **Required Secret**: `SA` - GCP service account JSON key with permissions for:
-  - Artifact Registry (push images)
-  - Cloud Run (deploy services)
-  - Secret Manager (access secrets)
+**Required Environment** (configure in GitHub repo settings):
+- **`gcp`** (single environment shared across all deployment targets)
+  - Secret: `SA` (GCP service account JSON key) <!-- pragma: allowlist secret -->
+  - Variables: `GCP_PROJECT_ID`, `GCP_REGION`
 
-**Variables** (configured in GitHub `gcp-dev` environment):
-- `GCP_PROJECT_ID`: GCP project ID (configurable per deployment)
-- `GCP_REGION`: GCP region (configurable per deployment)
-- `GAR_REPOSITORY`: `pairreader` (Artifact Registry)
-- `CLOUDRUN_BASE_SERVICE_NAME`: `pairreader-service` (Cloud Run)
+**Note**: All three deployment targets (dev, staging, prod) share the same GitHub environment configuration since they use the same GCP project and service account. Environment-specific resources are differentiated by Terraform workspace directories and resource naming conventions.
 
-**Deployment Details**:
-- **Image Tag Format**: `{region}-docker.pkg.dev/{project-id}/{repo}/{image-name}-dev:{git-sha}`
-- **Runtime Configuration**: 4Gi memory, port 8000, allow unauthenticated access
-- **Service Account**: `pairreader-runtime@{project-id}.iam.gserviceaccount.com`
+### Terraform & Infrastructure
+
+**Version Management**:
+- Terraform CLI version: `infra/.terraform-version` (used by CI/CD)
+- Terraform required_version: In each env's `main.tf` (dev/staging/prod)
+- When updating: Update all 3 env files + `.terraform-version` (comments remind you)
+
+**State Management**:
+- Separate GCS buckets per environment:
+  - Dev: `sfn-terraform-state-dev`
+  - Staging: `sfn-terraform-state-staging`
+  - Prod: `sfn-terraform-state-prod`
+- State locking enabled by default (GCS backend)
+
+**Infrastructure Resources** (per environment):
+- Artifact Registry repository: `pairreader-{env}`
+- Cloud Run service: `pairreader-service-{env}`
+- Service Account: `pairreader-runtime-{env}`
+- Secrets: Managed via Secret Manager (ANTHROPIC_API_KEY, CHAINLIT_AUTH_SECRET, LANGSMITH_API_KEY)
+
+**Key Design Decisions**:
+- **Shared Secrets**: All environments share the same Secret Manager secrets
+- **Manual Secret Management**: Secrets are managed completely outside Terraform via `gcloud` commands for security
+- **Global Configuration**: Project ID and region defined once in `infra/terraform.tfvars` (gitignored)
 
 ### Repository Governance
-
-PairReader enforces strict code quality and review standards through automated governance:
 
 **Code Ownership** (`.github/CODEOWNERS`):
 - All code changes require review from designated code owners
 - `@sfnsys710` owns all core application code, infrastructure, documentation, and CI/CD
-- GitHub automatically requests reviews from owners when PRs touch their areas
-- Patterns follow specificity precedence (more specific patterns override general ones)
 
-**Branch Protection** (`.github/repo-settings.md`):
+**Branch Protection**:
 - **Merge Strategy**: Rebase-only merges enforced for clean, linear git history
 - **Pull Request Requirements**:
   - 1 code owner approval required
@@ -200,107 +197,27 @@ PairReader enforces strict code quality and review standards through automated g
   - CI must pass (`pre-commit` + `pytest`)
   - Branch must be up-to-date with `main`
 - **Security**: Secret scanning and push protection enabled
-- **Repository Admins**: Can bypass rules for flexibility on solo projects
-- **Protection Method**: Modern repository ruleset (ID: 8656916)
-
-This ensures all changes are reviewed, tested, and meet quality standards before merging to `main`.
-
-### Docker Architecture
-
-**Multi-Stage Build** (`Dockerfile`):
-- **Builder stage**: Uses `ghcr.io/astral-sh/uv:python3.12-bookworm-slim` as base
-  - `UV_PYTHON_DOWNLOADS=0`: Forces use of system Python (must match pyproject.toml version)
-  - `UV_COMPILE_BYTECODE=1`: Pre-compiles bytecode for faster container startup
-  - Dependencies installed first (`uv sync --locked --no-install-project --no-dev`) for better layer caching
-  - Project installed separately (`uv sync --locked --no-dev`) to leverage Docker layer caching
-- **Runtime stage**: Uses `python:3.12-slim-bookworm` (smaller footprint)
-  - Only copies `.venv/`, `src/`, `public/`, and `chainlit.md` from builder
-  - Sets `PYTHONPATH=/app/src` for module imports
-  - Chainlit runs on `0.0.0.0:8000` for container accessibility
-
-**Environment Variables** (`compose.yml`):
-- Required: `ANTHROPIC_API_KEY`, `CHAINLIT_AUTH_SECRET`
-- LangSmith (optional): `LANGSMITH_TRACING`, `LANGSMITH_ENDPOINT`, `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT`
-- All variables loaded from `.env` file using `${VAR:-default}` syntax
-
-**Build Optimization** (`.dockerignore`):
-- Excludes: `.venv/`, `__pycache__/`, `.env`, data directories (`chroma/`, `.chainlit/`, `.files/`)
-- Includes: `chainlit.md`, `README.md` (required for package metadata)
-- This reduces build context and prevents sensitive data leakage
-
-**Data Persistence**:
-- ChromaDB data (`./chroma/`) is stored inside the container
-- Data persists across container restarts but is lost if container is removed
-- For production: Add volume mount in `compose.yml`: `volumes: - ./chroma:/app/chroma`
-
-**Key Implementation Notes**:
-- Python version **must match** across: `pyproject.toml`, builder base image, and runtime base image
-- `UV_PYTHON_DOWNLOADS=0` prevents uv from downloading a different Python version
-- `chainlit.md` and `README.md` must be copied before `uv sync --locked --no-dev` (required by package metadata)
-- Entry point uses full command: `chainlit run src/pairreader/__main__.py` (not `pairreader` script)
 
 ## Architecture Overview
-
-### Node Architecture Design Principles
-
-PairReader implements a **three-tier node inheritance hierarchy** for clean separation of concerns and code reusability:
-
-#### 1. BaseNode (Foundation Layer)
-Base class for all LangGraph nodes providing:
-- **User I/O operations**: `ask()`, `send()`, `stream()` methods for UI interaction
-- **Dynamic parameter management**: `set_params()` and `get_params()` for runtime configuration
-- **Standard interface**: All nodes implement `async __call__(state: Dict) -> Dict`
-
-**When to use**: Pure logic nodes that don't need LLM or vector store access
-- Example: `KnowledgeBaseHandler` (handles file uploads and commands)
-
-#### 2. LLMNode (extends BaseNode)
-Specialized for nodes using Language Models with encapsulated patterns:
-- **Primary + Fallback LLM**: Automatic failover if primary model fails
-- **Tool Binding**: Optional `.bind_tools()` for routing/function calling
-- **Structured Output**: Optional `.with_structured_output()` for Pydantic models
-- **Smart `@property llm`**: Dynamically applies all configurations when accessed
-
-**When to use**: Nodes that generate text, make decisions, or use LLM reasoning
-- Examples: `QueryOptimizer`, `InfoSummarizer`, `MapSummarizer`, `ReduceSummarizer`, `QADiscoveryRouter`, `HumanInTheLoopApprover`
-
-**Configuration flexibility**:
-```python
-# Simple LLM node (with fallback)
-class InfoSummarizer(LLMNode):
-    def __init__(self, llm_name: str = "anthropic:claude-3-5-haiku-latest", **kwargs):
-        super().__init__(llm_name=llm_name, fallback_llm_name=None, **kwargs)
-
-# With structured output
-class HumanInTheLoopApprover(LLMNode):
-    def __init__(self, **kwargs):
-        super().__init__(structured_output_schema=HITLDecision, **kwargs)
-
-# With tool binding
-class QADiscoveryRouter(LLMNode):
-    def __init__(self, **kwargs):
-        super().__init__(tools=[self.qa_agent, self.discovery_agent], **kwargs)
-```
-
-#### 3. RetrievalNode (extends BaseNode)
-Specialized for nodes interacting with vector stores:
-- **Vectorstore access**: Direct access via `self.vectorstore`
-- **Common retrieval patterns**: Query, sample, cluster, metadata operations
-- **Separation of concerns**: Retrieval logic separated from LLM logic
-
-**When to use**: Nodes that query, sample, or cluster documents
-- Examples: `InfoRetriever`, `ClusterRetriever`
-
-**Key Benefits of This Architecture**:
-1. **Code Reusability**: Common LLM and retrieval patterns extracted once
-2. **Separation of Concerns**: LLM logic, retrieval logic, and I/O cleanly separated
-3. **Flexibility**: Easy to swap LLM configurations, add tools, or change vectorstore
-4. **Consistency**: All nodes follow the same patterns and interfaces
-5. **Testability**: Each layer can be tested independently
 
 ### Multi-Agent System Architecture
 
 PairReader uses a **three-tier agent hierarchy** with LangGraph:
+
+```
+User Query
+    ↓
+PairReaderAgent (Supervisor)
+    ↓
+QADiscoveryRouter
+    ↓
+  ┌─────────────────┐
+  ↓                 ↓
+QAAgent          DiscoveryAgent
+(Default)        (Exploration)
+  ↓                 ↓
+Answer           Overview
+```
 
 1. **PairReaderAgent** (Supervisor) - Top-level orchestrator
    - Handles knowledge base operations (Create/Update/Query modes)
@@ -337,35 +254,56 @@ The `QADiscoveryRouter` uses LangGraph's **Command primitive** for dynamic routi
 - Workflow uses map-reduce clustering for comprehensive insights
 - **Only triggered by explicit exploration language** - not used for regular questions
 
-### Core Components
+### Node Architecture Design Principles
 
-**PairReaderAgent** (`src/pairreader/agents.py`)
-- Main orchestrator with three sub-agents: QAAgent, DiscoveryAgent, and router
-- Uses `InMemorySaver` for checkpointing (not persisted to disk)
-- Nodes are stored as tuples `(name, node_instance)` in `self.nodes` list
-- `set_params(**params)` propagates settings changes to all nodes (accesses `node[1]` for node instance)
+PairReader implements a **three-tier node inheritance hierarchy** for clean separation of concerns and code reusability:
 
-**QAAgent** (`src/pairreader/agents.py`)
-- Specialized agent for question-answering workflow
-- Has its own StateGraph and InMemorySaver checkpointer
-- `route_after_human_in_the_loop_approver()` uses structured output (`HITLDecision`) to route to either `query_optimizer` (regenerate) or `info_retriever` (proceed)
+#### 1. BaseNode (Foundation Layer)
+Base class for all LangGraph nodes providing:
+- **User I/O operations**: `ask()`, `send()`, `stream()` methods for UI interaction
+- **Dynamic parameter management**: `set_params()` and `get_params()` for runtime configuration
+- **Standard interface**: All nodes implement `async __call__(state: Dict) -> Dict`
 
-**DiscoveryAgent** (`src/pairreader/agents.py`)
-- Specialized agent for document discovery and summarization
-- Has its own StateGraph and InMemorySaver checkpointer
-- Implements parallel map-reduce pattern for efficient clustering
+**When to use**: Pure logic nodes that don't need LLM or vector store access
+- Example: `KnowledgeBaseHandler` (handles file uploads and commands)
 
-**State Management** (`src/pairreader/schemas.py`)
-- `PairReaderState` TypedDict is **shared across all agents** (PairReaderAgent, QAAgent, DiscoveryAgent)
-- State fields:
-  - `messages`: Annotated list with `add_messages` reducer for LLM conversation history
-  - `user_query`: Original user question
-  - `user_command`: Command type (Create/Update/None)
-  - QA-specific: `subqueries`, `human_in_the_loop_decision`, `retrieved_documents`, `retrieved_metadatas`, `summary`
-  - Discovery-specific: `clusters`, `cluster_summaries`, `summary_of_summaries`
-- `HITLDecision` is a Pydantic BaseModel for structured routing decisions
+#### 2. LLMNode (extends BaseNode)
+Specialized for nodes using Language Models with encapsulated patterns:
+- **Primary + Fallback LLM**: Automatic failover if primary model fails
+- **Tool Binding**: Optional `.bind_tools()` for routing/function calling
+- **Structured Output**: Optional `.with_structured_output()` for Pydantic models
+- **Smart `@property llm`**: Dynamically applies all configurations when accessed
 
-**Node Architecture**
+**When to use**: Nodes that generate text, make decisions, or use LLM reasoning
+- Examples: `QueryOptimizer`, `InfoSummarizer`, `MapSummarizer`, `ReduceSummarizer`, `QADiscoveryRouter`, `HumanInTheLoopApprover`
+
+#### 3. RetrievalNode (extends BaseNode)
+Specialized for nodes interacting with vector stores:
+- **Vectorstore access**: Direct access via `self.vectorstore`
+- **Common retrieval patterns**: Query, sample, cluster, metadata operations
+- **Separation of concerns**: Retrieval logic separated from LLM logic
+
+**When to use**: Nodes that query, sample, or cluster documents
+- Examples: `InfoRetriever`, `ClusterRetriever`
+
+**Key Benefits of This Architecture**:
+1. **Code Reusability**: Common LLM and retrieval patterns extracted once
+2. **Separation of Concerns**: LLM logic, retrieval logic, and I/O cleanly separated
+3. **Flexibility**: Easy to swap LLM configurations, add tools, or change vectorstore
+4. **Consistency**: All nodes follow the same patterns and interfaces
+5. **Testability**: Each layer can be tested independently
+
+### State Management
+
+`PairReaderState` TypedDict is **shared across all agents** (PairReaderAgent, QAAgent, DiscoveryAgent):
+- `messages`: Annotated list with `add_messages` reducer for LLM conversation history
+- `user_query`: Original user question
+- `user_command`: Command type (Create/Update/None)
+- QA-specific: `subqueries`, `human_in_the_loop_decision`, `retrieved_documents`, `retrieved_metadatas`, `summary`
+- Discovery-specific: `clusters`, `cluster_summaries`, `summary_of_summaries`
+
+### Node Organization
+
 Nodes are organized into three files, with each node inheriting from the appropriate base class:
 
 1. **`pairreader_nodes.py`** - Supervisor-level nodes
@@ -383,58 +321,42 @@ Nodes are organized into three files, with each node inheriting from the appropr
    - `MapSummarizer` (LLMNode): Summarizes each cluster in parallel using `asyncio.gather()`
    - `ReduceSummarizer` (LLMNode): Combines cluster summaries into a final overview
 
-**Common Node Patterns**:
-- All nodes inherit from `BaseNode`, `LLMNode`, or `RetrievalNode` depending on their function
-- All nodes support dynamic parameter updates via `set_params(**kwargs)` (inherited from BaseNode)
-- All node `__call__` methods are decorated with `@Verboser()` decorator
-- All nodes use centralized prompts/messages from `prompts_msgs.py`
-- LLM nodes use `@property llm` to ensure fresh initialization with current parameters
-- Retrieval nodes access vectorstore via `self.vectorstore`
+### Core Components
 
-**Utility Classes and Decorators** (`src/pairreader/utils.py`)
+**Agent Classes** (`src/pairreader/agents.py`):
+- `PairReaderAgent`: Main orchestrator with sub-agents (QAAgent, DiscoveryAgent, router)
+- `QAAgent`: Question-answering workflow with query decomposition and retrieval
+- `DiscoveryAgent`: Document exploration with clustering and map-reduce summarization
+- All agents use `InMemorySaver` for checkpointing (not persisted to disk)
+- Nodes are stored as tuples `(name, node_instance)` in `self.nodes` list
+- `set_params(**params)` propagates settings changes to all nodes (accesses `node[1]` for node instance)
 
-**Node Base Classes** (see "Node Architecture Design Principles" section for details):
-- `BaseNode`: Foundation class for all nodes (UserIO + parameter management + standard interface)
-- `LLMNode`: Extends BaseNode for nodes using language models (handles LLM config, fallbacks, tools, structured output)
-- `RetrievalNode`: Extends BaseNode for nodes accessing vector stores (encapsulates vectorstore patterns)
+**Utility Classes** (`src/pairreader/utils.py`):
+- `BaseNode`: Foundation class for all nodes (UserIO + parameter management)
+- `LLMNode`: Extends BaseNode for nodes using language models
+- `RetrievalNode`: Extends BaseNode for nodes accessing vector stores
+- `BaseAgent`: Base class for all agents with common initialization
+- `@Verboser`: Decorator for logging and streaming verbosity (levels 0-3)
 
-**Decorators**:
-- `@Verboser`: Combined decorator for logging and streaming verbosity (supports levels 0-3)
-  - Level 0: No verbosity
-  - Level 1: LangGraph streaming only
-  - Level 2: LangGraph streaming + logging (default)
-  - Level 3: LangGraph streaming + logging with debug
+**Prompts and Messages** (`src/pairreader/prompts_msgs.py`):
+- Centralized repository for all LLM prompts and user messages
+- `DISCOVERY_PROMPTS`/`DISCOVERY_MSGS`: Discovery Agent templates
+- `QA_PROMPTS`/`QA_MSGS`: QA Agent templates
+- `PAIRREADER_PROMPTS`/`PAIRREADER_MSGS`: Routing and knowledge base operations
+- All prompts use `.format()` for variable substitution
 
-**Agent Infrastructure**:
-- `BaseAgent`: Base class for all agents with common initialization and workflow patterns
-
-**Prompts and Messages** (`src/pairreader/prompts_msgs.py`)
-Centralized repository for all LLM prompts and user messages:
-- `DISCOVERY_PROMPTS`: Templates sent to LLMs for Discovery Agent processing
-- `DISCOVERY_MSGS`: User-facing messages for Discovery Agent
-- `QA_PROMPTS`: Templates sent to LLMs for QA Agent processing
-- `QA_MSGS`: User-facing messages for QA Agent
-- `PAIRREADER_PROMPTS`: Templates sent to LLMs for routing decisions
-- `PAIRREADER_MSGS`: User-facing messages for knowledge base operations
-
-All prompts use `.format()` for variable substitution to maintain clean separation between template structure and dynamic content
-
-**Document Processing**
+**Document Processing**:
 - `DocParser` (`src/pairreader/docparser.py`): Uses Docling's `DocumentConverter` and `HybridChunker`
 - `VectorStore` (`src/pairreader/vectorestore.py`):
   - ChromaDB client with persistent storage in `./chroma` directory
   - Default collection name: `"knowledge_base"`
-  - Discovery-specific methods:
-    - `get_sample()`: Random sampling of document IDs for clustering
-    - `get_clusters()`: Async parallel cluster creation using semantic similarity
+  - Discovery-specific methods: `get_sample()`, `get_clusters()`
 
-**Chainlit Integration** (`src/pairreader/__main__.py`)
+**Chainlit Integration** (`src/pairreader/__main__.py`):
 - Entry point with `main()` function for CLI command
 - Custom `InMemoryDataLayer` for chat history (not persisted between restarts)
 - Password authentication: username/password = "admin"/"admin" (TODO: move to secure storage)  <!-- pragma: allowlist secret -->
-- Settings UI with general and discovery-specific parameters:
-  - General: LLM selection, query decomposition toggle, retrieval document count
-  - Discovery Agent: sampling parameters (`n_sample`, `p_sample`), clustering parameters (`cluster_percentage`, `min_cluster_size`, `max_cluster_size`)
+- Settings UI with general and discovery-specific parameters
 - Uses `cl.context.session.thread_id` for thread-based conversations
 
 ### Three Usage Modes
@@ -444,92 +366,10 @@ All prompts use `.format()` for variable substitution to maintain clean separati
 
 Commands are triggered via Chainlit commands `/Create` or `/Update`, or via starter buttons in UI
 
-### Key Features by Agent
-
-**QA Agent Features**
-- **Query Optimization** (configurable in settings):
-  - `query_decomposition`: Breaks complex queries into sub-queries using LLM
-  - When disabled, passes through original query directly to vector store
-- **Human-in-the-Loop**: User can revise/approve subqueries or request regeneration
-- **Targeted Retrieval**: Uses optimized queries to retrieve relevant document chunks
-
-**Discovery Agent Features**
-- **Map-Reduce Summarization**:
-  - Samples documents from vector store (configurable via `n_sample` or `p_sample`)
-  - Clusters documents using semantic similarity
-  - Summarizes each cluster in parallel (map phase)
-  - Combines cluster summaries into comprehensive overview (reduce phase)
-- **Configurable Parameters** (all exposed in Chainlit settings):
-  - **Sampling**: `n_sample` (exact count) or `p_sample` (percentage). If `n_sample` > 0, it takes priority over `p_sample`
-  - **Clustering**: `cluster_percentage` (controls granularity), `min_cluster_size`, `max_cluster_size` (leave at 0 for auto-sizing)
-
-**Document Ingestion** (Common)
-- Accepts PDF and text files
-- Max 5 files, 10MB each
-- Files are chunked and stored with metadata (filename)
-- Chunks are contextualized using `HybridChunker.contextualize()`
-
-**Interrupts and Timeouts** (Common)
-- File upload prompts have 90s timeout
-- Uses LangGraph `interrupt()` for user interaction
-- When timeout occurs, user can continue with existing knowledge base
-
-## Important Implementation Details
-
-### LangSmith LLMOps Integration
-
-PairReader implements production-ready LLMOps through LangSmith for full observability and debugging.
-
-**Automatic Tracing** (Zero-Configuration):
-- Enable with `LANGSMITH_TRACING=true` in `.env` - no code changes needed
-- Traces all LangGraph workflows, LLM calls, agent routing, and state transitions
-- Organized under `pairreader` project at https://smith.langchain.com/
-
-**What Gets Traced**:
-- Multi-agent orchestration (PairReaderAgent → QA/Discovery routing)
-- LLM interactions (prompts, responses, structured outputs)
-- Tool calls (Command navigation, tool binding, interrupts)
-- Vectorstore operations (queries, retrieval, clustering)
-- State evolution across all nodes
-
-**Observability Benefits**:
-- **Debugging**: Trace failed queries, understand routing decisions, inspect exact prompts/responses
-- **Monitoring**: Track token usage, latency, error rates, and costs per node/agent/LLM
-- **Optimization**: Identify bottlenecks, expensive queries, and fallback usage patterns
-
-### LLM Configuration
-- Default LLM: `anthropic:claude-3-5-haiku-latest`
-- Fallback LLM: `anthropic:claude-3-7-sonnet-latest`
-- LLMs are initialized using `langchain.chat_models.init_chat_model`
-- Fallback is configured with `.with_fallbacks([...])`
-- Each node that uses LLM has an `llm` property that returns the configured LLM with fallback
-
-### Vector Store Behavior
-- `/Create` command calls `vectorstore.flush()` (deletes and recreates collection)
-- `/Update` command appends to existing collection
-- Query results include top `n_documents` (default: 10, configurable via settings)
-- Uses default ChromaDB embedding (all-MiniLM-L6-v2)
-- Persistent storage in `./chroma` directory
-
-### Streaming and Execution
-- LangGraph workflow is invoked with `await pairreader(input=input, config=config)` in `on_message()`
-- Config includes thread_id: `{"configurable": {"thread_id": thread_id}}`
-- Nodes use LangGraph's `get_stream_writer()` to send status updates
-- LLM message history is maintained in `state["messages"]` with `add_messages` reducer
-
-### Session Management
-- Thread-based conversation using `cl.context.session.thread_id`
-- Config passed to workflow: `{"configurable": {"thread_id": thread_id}}`
-- InMemoryDataLayer handles chat history (not persisted between restarts)
-
-### Authentication
-- Uses `@cl.password_auth_callback`
-- Current credentials hardcoded (admin/admin) - TODO: use database
-- See Environment Setup section for required environment variables
-
 ## Code Style and Patterns
 
 ### Node Implementation Patterns
+
 All LangGraph nodes inherit from one of three base classes. Choose based on the node's function:
 
 #### Pattern 1: BaseNode (Pure Logic Nodes)
@@ -666,46 +506,89 @@ class InfoRetriever(RetrievalNode):
 - **Command-based routing**: Router nodes return `Command(goto="target", update={...})` for dynamic navigation
 - **Parallel execution**: Use `asyncio.gather()` for parallel LLM calls (e.g., MapSummarizer)
 
-### Error Handling
-- Use try/except with logger.error() for error handling (see `docparser.py`)
-- ChromaDB queries support `where_document` filters (contains/not_contains)
+## Important Implementation Details
+
+### LangSmith LLMOps Integration
+
+PairReader implements production-ready LLMOps through LangSmith for full observability and debugging.
+
+**Automatic Tracing** (Zero-Configuration):
+- Enable with `LANGSMITH_TRACING=true` in `.env` - no code changes needed
+- Traces all LangGraph workflows, LLM calls, agent routing, and state transitions
+- Organized under `pairreader` project at https://smith.langchain.com/
+
+**What Gets Traced**:
+- Multi-agent orchestration (PairReaderAgent → QA/Discovery routing)
+- LLM interactions (prompts, responses, structured outputs)
+- Tool calls (Command navigation, tool binding, interrupts)
+- Vectorstore operations (queries, retrieval, clustering)
+- State evolution across all nodes
+
+### LLM Configuration
+- Default LLM: `anthropic:claude-3-5-haiku-latest`
+- Fallback LLM: `anthropic:claude-3-7-sonnet-latest`
+- LLMs are initialized using `langchain.chat_models.init_chat_model`
+- Fallback is configured with `.with_fallbacks([...])`
+- Each node that uses LLM has an `llm` property that returns the configured LLM with fallback
+
+### Vector Store Behavior
+- `/Create` command calls `vectorstore.flush()` (deletes and recreates collection)
+- `/Update` command appends to existing collection
+- Query results include top `n_documents` (default: 10, configurable via settings)
+- Uses default ChromaDB embedding (all-MiniLM-L6-v2)
+- Persistent storage in `./chroma` directory
+
+### Streaming and Execution
+- LangGraph workflow is invoked with `await pairreader(input=input, config=config)` in `on_message()`
+- Config includes thread_id: `{"configurable": {"thread_id": thread_id}}`
+- Nodes use LangGraph's `get_stream_writer()` to send status updates
+- LLM message history is maintained in `state["messages"]` with `add_messages` reducer
+
+### Docker Architecture
+
+**Multi-Stage Build** (`Dockerfile`):
+- **Builder stage**: Uses `ghcr.io/astral-sh/uv:python3.12-bookworm-slim` as base
+  - `UV_PYTHON_DOWNLOADS=0`: Forces use of system Python (must match pyproject.toml version)
+  - `UV_COMPILE_BYTECODE=1`: Pre-compiles bytecode for faster container startup
+  - Dependencies installed first (`uv sync --locked --no-install-project --no-dev`) for better layer caching
+  - Project installed separately (`uv sync --locked --no-dev`) to leverage Docker layer caching
+- **Runtime stage**: Uses `python:3.12-slim-bookworm` (smaller footprint)
+  - Only copies `.venv/`, `src/`, `public/`, and `chainlit.md` from builder
+  - Sets `PYTHONPATH=/app/src` for module imports
+  - Chainlit runs on `0.0.0.0:8000` for container accessibility
+
+**Key Implementation Notes**:
+- Python version **must match** across: `pyproject.toml`, builder base image, and runtime base image
+- `UV_PYTHON_DOWNLOADS=0` prevents uv from downloading a different Python version
+- `chainlit.md` and `README.md` must be copied before `uv sync --locked --no-dev` (required by package metadata)
+- Entry point uses full command: `chainlit run src/pairreader/__main__.py` (not `pairreader` script)
 
 ## Package Structure
 ```
-pairreader/
-├── src/pairreader/
-│   ├── __main__.py           # Application entry point with Chainlit integration
-│   ├── agents.py             # Multi-agent orchestration (PairReaderAgent, QAAgent, DiscoveryAgent)
-│   ├── pairreader_nodes.py   # Supervisor nodes (KnowledgeBaseHandler, QADiscoveryRouter)
-│   ├── qa_nodes.py           # QA Agent nodes (QueryOptimizer, InfoRetriever, etc.)
-│   ├── discovery_nodes.py    # Discovery Agent nodes (ClusterRetriever, MapSummarizer, ReduceSummarizer)
-│   ├── schemas.py            # Shared state definitions
-│   ├── prompts_msgs.py       # Centralized prompts and messages
-│   ├── vectorestore.py       # ChromaDB interface with clustering support
-│   ├── docparser.py          # Document processing with Docling
-│   ├── clmemory.py           # Chainlit memory layer (InMemoryDataLayer)
-│   └── utils.py              # Base classes (BaseNode, LLMNode, RetrievalNode), decorators, BaseAgent
-├── public/                   # Static assets for Chainlit UI
-├── chainlit.md              # Chainlit welcome page content
-├── Dockerfile               # Multi-stage Docker build
-├── compose.yml              # Docker Compose configuration
-├── .dockerignore            # Docker build exclusions
-├── pyproject.toml           # Project metadata and dependencies
-└── CLAUDE.md                # Developer documentation (this file)
+pairreader/src/pairreader/
+├── __main__.py           # Application entry point with Chainlit integration
+├── agents.py             # Multi-agent orchestration (PairReaderAgent, QAAgent, DiscoveryAgent)
+├── pairreader_nodes.py   # Supervisor nodes (KnowledgeBaseHandler, QADiscoveryRouter)
+├── qa_nodes.py           # QA Agent nodes (QueryOptimizer, InfoRetriever, etc.)
+├── discovery_nodes.py    # Discovery Agent nodes (ClusterRetriever, MapSummarizer, ReduceSummarizer)
+├── schemas.py            # Shared state definitions
+├── prompts_msgs.py       # Centralized prompts and messages
+├── vectorestore.py       # ChromaDB interface with clustering support
+├── docparser.py          # Document processing with Docling
+├── clmemory.py           # Chainlit memory layer (InMemoryDataLayer)
+└── utils.py              # Base classes (BaseNode, LLMNode, RetrievalNode), decorators, BaseAgent
 ```
 
 **Key Files**:
 - Entry point: `src/pairreader/__main__.py` with `main()` function
 - Package script: `pyproject.toml` defines `pairreader = "pairreader.__main__:main"`
 - This allows running via `uv run pairreader` or `pairreader` after installation
-- Memory layer: `clmemory.py` implements custom `InMemoryDataLayer` for Chainlit chat history
 
 ## Future TODOs (from codebase comments)
 - Enhanced table and image extraction from Docling
 - Embedding and tokenization-aware chunking
 - Retrieve chunks with metadata (e.g., page numbers)
-- Validate distance metric compatibility with embedding model
 - Move authentication to database with hashed passwords
 - Explore OAuth and header-based authentication
-- **DiscoveryAgent**: Improve sampling-clustering algorithm to ensure entire knowledge base is covered (currently samples may not cover all documents)
-- **Context Management**: Debug and optimize `state["messages"]` to ensure LLM gets sufficient context during multi-turn conversations while trimming when necessary to avoid token window overflow. Find the trade-off between context retention and token efficiency.
+- **DiscoveryAgent**: Improve sampling-clustering algorithm to ensure entire knowledge base is covered
+- **Context Management**: Debug and optimize `state["messages"]` to balance context retention and token efficiency
