@@ -62,10 +62,14 @@ jobs:
       - name: Terraform Init
         run: terraform init
         working-directory: infra/envs/staging
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.SA }}
 
       - name: Terraform Plan
         run: terraform plan -var-file=../../terraform.tfvars
         working-directory: infra/envs/staging
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.SA }}
 
   terraform-apply-staging:
     name: Terraform apply (staging)
@@ -93,10 +97,14 @@ jobs:
       - name: Terraform Init
         run: terraform init
         working-directory: infra/envs/staging
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.SA }}
 
       - name: Terraform Apply
         run: terraform apply -auto-approve -var-file=../../terraform.tfvars
         working-directory: infra/envs/staging
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.SA }}
 
   docker-build-staging:
     name: Build and push Docker (staging)
