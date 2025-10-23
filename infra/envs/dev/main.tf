@@ -1,72 +1,45 @@
 terraform {
-  required_version = ">= 1.5"
+  required_version = ">= 1.10"
   required_providers {
     google = {
       source  = "hashicorp/google"
-      version = "~> 5.0"
+      version = "~> 7.0"
     }
+  }
+
+  backend "gcs" {
+    bucket = "sfn-terraform-state-dev"
   }
 }
 
 provider "google" {
-  project = "soufianesys"
-  region  = "europe-southwest1"
+  project = var.project_id
+  region  = var.region
 }
 
 module "pairreader" {
   source = "../../modules/pairreader"
 
-  project_id  = "soufianesys"
-  region      = "europe-southwest1"
+  project_id  = var.project_id
+  region      = var.region
   environment = "dev"
 
-  # Secrets from shared terraform.tfvars (at infra/ root)
-  anthropic_api_key    = var.anthropic_api_key
-  chainlit_auth_secret = var.chainlit_auth_secret
-  langsmith_api_key    = var.langsmith_api_key
-
-  # Cloud Run configuration
-  memory                = var.memory
-  port                  = var.port
-  allow_unauthenticated = var.allow_unauthenticated
+  # Cloud Run configuration (hardcoded for dev environment)
+  memory                = "4Gi"
+  cpu                   = "2"
+  port                  = 8000
+  allow_unauthenticated = true
 }
 
-# Variables for secrets (populated from infra/terraform.tfvars)
-variable "anthropic_api_key" {
-  description = "Anthropic API key"
+# Variables from shared terraform.tfvars (at infra/ root)
+variable "project_id" {
+  description = "GCP project ID"
   type        = string
-  sensitive   = true
 }
 
-variable "chainlit_auth_secret" {
-  description = "Chainlit auth secret"
+variable "region" {
+  description = "GCP region"
   type        = string
-  sensitive   = true
-}
-
-variable "langsmith_api_key" {
-  description = "LangSmith API key"
-  type        = string
-  sensitive   = true
-}
-
-# Cloud Run configuration variables
-variable "memory" {
-  description = "Cloud Run memory allocation"
-  type        = string
-  default     = "4Gi"
-}
-
-variable "port" {
-  description = "Cloud Run container port"
-  type        = number
-  default     = 8000
-}
-
-variable "allow_unauthenticated" {
-  description = "Allow unauthenticated access"
-  type        = bool
-  default     = true
 }
 
 # Outputs

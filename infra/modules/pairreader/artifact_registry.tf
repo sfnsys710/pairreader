@@ -3,10 +3,4 @@ resource "google_artifact_registry_repository" "pairreader" {
   repository_id = "pairreader-${var.environment}"
   description   = "Docker repository for PairReader application (${var.environment} environment)"
   format        = "DOCKER"
-
-  labels = {
-    environment = var.environment
-    app         = "pairreader"
-    managed_by  = "terraform"
-  }
 }
