@@ -8,9 +8,7 @@ env:
   CLOUDRUN_BASE_SERVICE_NAME: "pairreader-service"
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
 
 # Prevent concurrent deployments to staging
 concurrency:
