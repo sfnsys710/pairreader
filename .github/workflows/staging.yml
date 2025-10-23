@@ -52,13 +52,6 @@ jobs:
         with:
           terraform_version: ${{ needs.extract-version.outputs.TF_VERSION }}
 
-      - name: Authenticate to Google Cloud
-        run: |
-          echo '${{ secrets.SA }}' > ${HOME}/gcp-key.json
-          gcloud auth activate-service-account --key-file=${HOME}/gcp-key.json
-          gcloud config set project ${{ env.GCP_PROJECT_ID }}
-          rm ${HOME}/gcp-key.json
-
       - name: Terraform Init
         run: terraform init
         working-directory: infra/envs/staging
@@ -86,13 +79,6 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ needs.extract-version.outputs.TF_VERSION }}
-
-      - name: Authenticate to Google Cloud
-        run: |
-          echo '${{ secrets.SA }}' > ${HOME}/gcp-key.json
-          gcloud auth activate-service-account --key-file=${HOME}/gcp-key.json
-          gcloud config set project ${{ env.GCP_PROJECT_ID }}
-          rm ${HOME}/gcp-key.json
 
       - name: Terraform Init
         run: terraform init

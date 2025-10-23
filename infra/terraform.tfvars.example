@@ -1,20 +1,14 @@
-# Global Terraform Configuration Example
+# Terraform Variables Template
 # Copy this file to terraform.tfvars and fill in your values
 # IMPORTANT: terraform.tfvars is gitignored to prevent committing sensitive data
 
 # GCP Configuration
 project_id = "your-gcp-project-id"
-region     = "your-gcp-region"  # e.g., "us-central1", "europe-west1"
+region     = "your-gcp-region"  # e.g., "us-central1", "europe-west1", "asia-southeast1"
 
-# Version Management
-# - Terraform CLI version: See infra/.terraform-version (used by CI/CD)
-# - Terraform required_version: Defined in each env's main.tf
-# - Google provider version: Defined in each env's main.tf
-
-# Secrets Management
-# Secrets are managed via GCP Secret Manager
-# Terraform does NOT manage secret values, only the secret resources
-# Populate secret values manually using gcloud CLI:
+# Note: Secrets are managed via Secret Manager (not Terraform variables)
+# Terraform creates empty secret shells in secret_manager.tf
+# Populate secret values manually using gcloud:
 #   echo "your-key" | gcloud secrets versions add ANTHROPIC_API_KEY --data-file=-
 #   echo "your-secret" | gcloud secrets versions add CHAINLIT_AUTH_SECRET --data-file=-
 #   echo "your-key" | gcloud secrets versions add LANGSMITH_API_KEY --data-file=-

@@ -68,13 +68,6 @@ jobs:
         with:
           terraform_version: ${{ needs.extract-version.outputs.TF_VERSION }}
 
-      - name: Authenticate to Google Cloud
-        run: |
-          echo '${{ secrets.SA }}' > ${HOME}/gcp-key.json
-          gcloud auth activate-service-account --key-file=${HOME}/gcp-key.json
-          gcloud config set project ${{ env.GCP_PROJECT_ID }}
-          rm ${HOME}/gcp-key.json
-
       - name: Terraform Init
         run: terraform init
         working-directory: infra/envs/prod
@@ -102,13 +95,6 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ needs.extract-version.outputs.TF_VERSION }}
-
-      - name: Authenticate to Google Cloud
-        run: |
-          echo '${{ secrets.SA }}' > ${HOME}/gcp-key.json
-          gcloud auth activate-service-account --key-file=${HOME}/gcp-key.json
-          gcloud config set project ${{ env.GCP_PROJECT_ID }}
-          rm ${HOME}/gcp-key.json
 
       - name: Terraform Init
         run: terraform init
@@ -185,6 +171,6 @@ jobs:
       - name: Get Service URL
         run: |
           SERVICE_URL=$(gcloud run services describe ${{ env.CLOUDRUN_BASE_SERVICE_NAME }}-prod \
-            --region=${{ env.GAR_LOCATION }} \
+            --region=${{ env.GCP_REGION }} \
             --format='value(status.url)')
           echo "Production service deployed at: $SERVICE_URL"
