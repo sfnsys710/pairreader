@@ -78,10 +78,14 @@ jobs:
       - name: Terraform Init
         run: terraform init
         working-directory: infra/envs/prod
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.SA }}
 
       - name: Terraform Plan
         run: terraform plan -var-file=../../terraform.tfvars
         working-directory: infra/envs/prod
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.SA }}
 
   terraform-apply-prod:
     name: Terraform apply (prod)
@@ -109,10 +113,14 @@ jobs:
       - name: Terraform Init
         run: terraform init
         working-directory: infra/envs/prod
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.SA }}
 
       - name: Terraform Apply
         run: terraform apply -auto-approve -var-file=../../terraform.tfvars
         working-directory: infra/envs/prod
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.SA }}
 
   docker-build-prod:
     name: Build and push Docker (prod)
