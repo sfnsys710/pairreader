@@ -17,28 +17,16 @@ variable "environment" {
   }
 }
 
-variable "anthropic_api_key" {
-  description = "Anthropic API key for Claude"
-  type        = string
-  sensitive   = true
-}
-
-variable "chainlit_auth_secret" {
-  description = "Chainlit authentication secret"
-  type        = string
-  sensitive   = true
-}
-
-variable "langsmith_api_key" {
-  description = "LangSmith API key for tracing"
-  type        = string
-  sensitive   = true
-}
-
 variable "memory" {
   description = "Memory allocation for Cloud Run service"
   type        = string
   default     = "4Gi"
+}
+
+variable "cpu" {
+  description = "CPU allocation for Cloud Run service"
+  type        = string
+  default     = "2"
 }
 
 variable "port" {
