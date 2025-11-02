@@ -1,28 +1,60 @@
 # PairReader
 
+<!-- Cloud Infrastructure -->
+[![Google Cloud](https://img.shields.io/badge/Google%20Cloud-Platform-4285F4.svg?logo=google-cloud&logoColor=white)](https://cloud.google.com/)
+[![IAM](https://img.shields.io/badge/IAM-Identity%20%26%20Access-4285F4.svg)](https://cloud.google.com/iam)
+[![Cloud Run](https://img.shields.io/badge/Cloud%20Run-Serverless-4285F4.svg)](https://cloud.google.com/run)
+[![Artifact Registry](https://img.shields.io/badge/Artifact%20Registry-Docker-4285F4.svg)](https://cloud.google.com/artifact-registry)
+[![Secret Manager](https://img.shields.io/badge/Secret%20Manager-Security-4285F4.svg)](https://cloud.google.com/secret-manager)
+
+<!-- Infrastructure & CI/CD -->
+[![Terraform](https://img.shields.io/badge/Terraform-1.10.0-7B42BC.svg?logo=terraform&logoColor=white)](https://www.terraform.io/)
+[![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-CI/CD-2088FF.svg?logo=github-actions&logoColor=white)](https://github.com/features/actions)
+[![Docker](https://img.shields.io/badge/Docker-multi--stage%20builds-2496ED.svg?logo=docker&logoColor=white)](https://www.docker.com/)
+
+<!-- Core Technologies -->
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![License](https://img.shields.io/badge/license-Open%20Source-green.svg)](LICENSE)
+[![uv](https://img.shields.io/badge/uv-package%20manager-purple.svg)](https://github.com/astral-sh/uv)
+
+<!-- AI/ML Stack -->
 [![LangGraph](https://img.shields.io/badge/LangGraph-Multi--Agent-orange.svg)](https://langchain-ai.github.io/langgraph/)
+[![Anthropic Claude](https://img.shields.io/badge/Anthropic-Claude-brown.svg)](https://www.anthropic.com/)
+[![ChromaDB](https://img.shields.io/badge/ChromaDB-Vector%20Store-yellow.svg)](https://www.trychroma.com/)
+[![Chainlit](https://img.shields.io/badge/Chainlit-Chat%20UI-00A67E.svg)](https://chainlit.io/)
+[![LangSmith](https://img.shields.io/badge/LangSmith-LLMOps-1C3C3C.svg)](https://smith.langchain.com/)
 
 A smart document companion that allows you to chat with your books, presentations, notes, and other documents. Upload your files and have conversations with your content using advanced AI capabilities powered by LangGraph and Claude.
 
 ---
 
-## Why PairReader?
+## Key Technologies
 
-Working with large documents, research papers, or collections of notes can be overwhelming. You need to find specific information quickly, understand key themes, or compare content across multiple sources. Traditional search only finds keywords, not meaning.
+PairReader is built with a modern, production-ready tech stack combining cutting-edge AI/ML frameworks with enterprise-grade cloud infrastructure:
 
-**PairReader solves this** by becoming your intelligent reading partner:
+**AI & Machine Learning:**
+- **LangGraph** - Multi-agent orchestration with state management and workflow control
+- **LangChain** - LLM integration framework with tool binding and structured outputs
+- **Anthropic Claude** - Primary LLM (Haiku/Sonnet) with automatic fallback configuration
+- **ChromaDB** - Vector database for semantic search and document clustering
+- **Docling** - Advanced document parsing with hybrid chunking
+- **LangSmith** - Production LLMOps platform for tracing, debugging, and monitoring
 
-Unlike simple RAG chatbots, PairReader uses a **multi-agent architecture** that intelligently routes queries, decomposes complex questions, and provides both targeted answers and high-level overviews. It's production-ready with LangSmith tracing, giving you full observability into how answers are generated.
+**Frontend & User Interface:**
+- **Chainlit** - Interactive chat interface with file upload and settings management
 
-**What makes PairReader different:**
-- Multi-agent system with specialized workflows (QA vs Discovery)
-- Human-in-the-loop query review for transparency and control
-- Smart query decomposition for complex multi-part questions
-- Production-grade observability with LangSmith integration
-- Full infrastructure-as-code for cloud deployment
-- Complete CI/CD pipeline for dev/staging/prod environments
+**Infrastructure & Deployment:**
+- **Google Cloud Platform (GCP)** - Cloud provider with serverless architecture
+  - **Cloud Run** - Serverless container platform with auto-scaling (0-10 instances)
+  - **Artifact Registry** - Docker image storage with environment isolation
+  - **Secret Manager** - Secure credential management (API keys, auth secrets)
+- **Terraform 1.10.0** - Infrastructure as Code with modular, reusable components
+- **Docker** - Multi-stage builds with optimized layer caching
+
+**DevOps & Quality:**
+- **GitHub Actions** - CI/CD pipeline with smart change detection and modular workflows
+- **uv** - Fast, modern Python package manager (replacing pip/poetry)
+- **Pre-commit hooks** - Automated code quality (ruff, secret detection, file hygiene)
+- **pytest** - Comprehensive test suite with unit/integration markers and coverage reports
 
 ---
 
