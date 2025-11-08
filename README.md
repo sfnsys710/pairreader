@@ -25,8 +25,7 @@ A smart document companion that allows you to chat with your books, presentation
 [![Chainlit](https://img.shields.io/badge/Chainlit-Chat%20UI-00A67E.svg)](https://chainlit.io/)
 [![LangSmith](https://img.shields.io/badge/LangSmith-LLMOps-1C3C3C.svg)](https://smith.langchain.com/)
 
-
-https://github.com/user-attachments/assets/pairreader3.mp4
+https://github.com/user-attachments/assets/3c66eef1-3912-4ecb-adcd-4dabc84f4514
 
 ---
 
