@@ -1,5 +1,7 @@
 # PairReader
 
+A smart document companion that allows you to chat with your books, presentations, notes, and other documents. Upload your files and have conversations with your content using advanced AI capabilities powered by LangGraph and Claude.
+
 <!-- Cloud Infrastructure -->
 [![Google Cloud](https://img.shields.io/badge/Google%20Cloud-Platform-4285F4.svg?logo=google-cloud&logoColor=white)](https://cloud.google.com/)
 [![IAM](https://img.shields.io/badge/IAM-Identity%20%26%20Access-4285F4.svg)](https://cloud.google.com/iam)
@@ -23,7 +25,8 @@
 [![Chainlit](https://img.shields.io/badge/Chainlit-Chat%20UI-00A67E.svg)](https://chainlit.io/)
 [![LangSmith](https://img.shields.io/badge/LangSmith-LLMOps-1C3C3C.svg)](https://smith.langchain.com/)
 
-A smart document companion that allows you to chat with your books, presentations, notes, and other documents. Upload your files and have conversations with your content using advanced AI capabilities powered by LangGraph and Claude.
+
+https://github.com/user-attachments/assets/pairreader3.mp4
 
 ---
 
