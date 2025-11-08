@@ -26,7 +26,7 @@ A smart document companion that allows you to chat with your books, presentation
 [![LangSmith](https://img.shields.io/badge/LangSmith-LLMOps-1C3C3C.svg)](https://smith.langchain.com/)
 
 
-https://github.com/user-attachments/assets/pairreader3.mp4
+https://github.com/user-attachments/assets/6dbb241b-bcae-47ad-89cc-e5d5babae498
 
 ---
 
