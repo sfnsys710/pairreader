@@ -16,6 +16,7 @@ repos:
       - id: check-json                        # Validate JSON syntax
       - id: check-added-large-files           # Prevent committing files >1MB
         args: [--maxkb=1000]
+        exclude: ^public/pairreader3.mp4      # Allow large video in public/
       - id: check-case-conflict               # Detect filename case conflicts
       - id: check-merge-conflict              # Detect unresolved merge markers
       - id: check-docstring-first             # Ensure docstring comes before code
